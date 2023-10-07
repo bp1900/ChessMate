@@ -1,0 +1,5 @@
+python-chess
+torch
+pandas
+torchaudio
+git+https://github.com/openai/whisper.git
