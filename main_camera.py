@@ -8,34 +8,33 @@ import datetime
 import cv2
 
 from lc2fen.predict_board import detect_input_board
+from utils import create_dir
+
+from chessboard_recognition import chessboard_recognition
+from chess_piece_recognition import chess_pieces_detector, chess_pieces_detector2
 
 import pyrealsense2 as rs       # https://www.youtube.com/watch?v=CmDO-w56qso&ab_channel=NickDiFilippo
 
 
-def interpolate(xy0, xy1):
-    x0, y0 = xy0
-    x1, y1 = xy1
-    dx = (x1 - x0) / 8
-    dy = (y1 - y0) / 8
-    pts = [(x0 + i * dx, y0 + i * dy) for i in range(9)]
-    return pts
-
-
-def detect_chess_pieces():
-    model_trained = YOLO("best_transformed_detection.pt")
-    results = model_trained.predict(source=image, line_thickness=1, conf=0.5, augment=False, save_txt=True, save=True)
-
-    boxes = results[0].boxes
-    detections = boxes.xyxy.numpy()
-
 def main():
+
+    # Connect camera
     pipe = rs.pipeline()
     cfg = rs.config()
     cfg.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
     cfg.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
     pipe.start(cfg)
 
+    # Save path of images and predictions
+    images_path = f'images{os.sep}camera{os.sep}'
+    save_path = f'predictions{os.sep}camera{os.sep}'
+    create_dir(images_path)
+    create_dir(save_path)
+
+    # Process images
     while True:
+
+        # Frame
         frame = pipe.wait_for_frames()
         depth_frame = frame.get_depth_frame()
         color_frame = frame.get_color_frame()
@@ -56,7 +55,17 @@ def main():
         elif key == ord('q'):
             break
 
-    detect_chess_pieces()
+        # Save image
+        image_path = os.path.join(images_path, "color_image.png")
+
+        # Chessboard recognition
+        image = chessboard_recognition(image_path, save_path)
+        print("Chessboard recognition DONE!")
+
+        # Chess piece recognition
+        detections, boxes = chess_pieces_detector(image)
+        # chess_pieces_detector2(image_path)
+        print("Chess pieces detected DONE!")
 
     pipe.stop()
     cv2.destroyAllWindows()
