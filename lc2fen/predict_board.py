@@ -414,23 +414,22 @@ def predict_board(
     coordinates of the corners of the chessboard in the input image.
     """
     board_corners = detect_input_board(board_path, board_corners)
-    # pieces = obtain_individual_pieces(board_path)
-    # probs_with_no_indices = obtain_piece_probs_for_all_64_squares(pieces)
-    # if previous_fen is not None and not check_validity_of_fen(previous_fen):
-    #     print(
-    #         "Warning: the previous FEN is ignored because it is invalid for a "
-    #         "standard physical chess set"
-    #     )
-    #     previous_fen = None
-    # predictions = infer_chess_pieces(
-    #     probs_with_no_indices, a1_pos, previous_fen
-    # )
-    #
-    # board = list_to_board(predictions)
-    # fen = board_to_fen(board)
-    #
-    # return fen, board_corners
-    return board_corners
+    pieces = obtain_individual_pieces(board_path)
+    probs_with_no_indices = obtain_piece_probs_for_all_64_squares(pieces)
+    if previous_fen is not None and not check_validity_of_fen(previous_fen):
+        print(
+            "Warning: the previous FEN is ignored because it is invalid for a "
+            "standard physical chess set"
+        )
+        previous_fen = None
+    predictions = infer_chess_pieces(
+        probs_with_no_indices, a1_pos, previous_fen
+    )
+
+    board = list_to_board(predictions)
+    fen = board_to_fen(board)
+
+    return fen, board_corners
 
 
 def continuous_predictions(
@@ -534,9 +533,7 @@ def test_predict_board(obtain_piece_probs_for_all_64_squares):
             )
 
 
-def detect_input_board(
-    board_path: str, board_corners: (list[list[int]] | None) = None
-) -> list[list[int]]:
+def detect_input_board(board_path: str, board_corners: (list[list[int]] | None) = None) -> list[list[int]]:
     """Detect the input board.
 
     This function takes as input a path to a chessboard image
@@ -565,16 +562,22 @@ def detect_input_board(
     :return: Length-4 list of the (new) coordinates of the four board
     corners detected.
     """
+
+    # Image
     input_image = cv2.imread(board_path)
+    input_image = cv2.cvtColor(input_image, cv2.COLOR_BGR2RGB)
+
+    # Temporal path
     head, tail = os.path.split(board_path)
     tmp_dir = os.path.join(head, "tmp/")
     if os.path.exists(tmp_dir):
         shutil.rmtree(tmp_dir)
     os.mkdir(tmp_dir)
-    image_object = detect(
-        input_image, os.path.join(head, "tmp", tail), board_corners
-    )
+
+    # Detect board and compute corners
+    image_object = detect(input_image, os.path.join(head, "tmp", tail), board_corners)
     board_corners, _ = compute_corners(image_object)
+
     return board_corners
 
 
@@ -592,11 +595,16 @@ def obtain_individual_pieces(board_path: str) -> list[str]:
 
     :return: Length-64 list of paths to chess-piece images
     """
+
+    # Temporal path
     head, tail = os.path.split(board_path)
     tmp_dir = os.path.join(head, "tmp/")
     pieces_dir = os.path.join(tmp_dir, "pieces/")
     os.mkdir(pieces_dir)
+
+    # Split board image
     split_board_image_trivial(os.path.join(tmp_dir, tail), "", pieces_dir)
+
     return sorted(glob.glob(pieces_dir + "/*.jpg"))
 
 

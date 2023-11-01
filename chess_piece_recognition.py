@@ -1,5 +1,6 @@
 # Libraries
 import os
+import cv2
 
 from shapely.geometry import Polygon
 from ultralytics import YOLO
@@ -19,10 +20,13 @@ def calculate_iou(box_1, box_2):
 
 def chess_pieces_detector(image):
 
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
     # Predict using YOLO
     model_path = os.path.join('models', "best_transformed_detection.pt")
     model_trained = YOLO(model_path)
-    results = model_trained.predict(source=image, line_thickness=1, conf=0.5, augment=False, save_txt=True, save=True)
+    results = model_trained.predict(source=image, line_thickness=1, conf=0.2, augment=False, save_txt=True, save=True, imgsz=(512,512),
+                                    save_conf=True)
 
     boxes = results[0].boxes
     detections = boxes.xyxy.numpy()

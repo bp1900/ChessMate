@@ -31,8 +31,10 @@ def chessboard_recognition(image_path, save_path=None):
 
     # Perspective transformation
     new_corners = np.float32([[0, 0], [512, 0], [512, 512], [0, 512]])
+    # new_corners = np.float32([[512, 512], [0, 512], [0,0], [512, 0]])
     M = cv2.getPerspectiveTransform(np.float32(corners), new_corners)
     im = cv2.warpPerspective(im, M, (512, 512))
+    image = np.copy(im)
 
     # Interpolate corners (obtain squares of chessboard)
     TL, TR, BR, BL = new_corners
@@ -44,15 +46,15 @@ def chessboard_recognition(image_path, save_path=None):
 
     # Visualize prediction
     figure(figsize=(10, 10), dpi=80)
-    implot = plt.imshow(im)
+    implot = plt.imshow(image)
 
     for a, b in zip(ptsL, ptsR):
         plt.plot([a[0], b[0]], [a[1], b[1]], 'ro', linestyle="--")
-        plt.xlim(0, 512);
+        plt.xlim(0, 512)
         plt.ylim(0, 512)
     for a, b in zip(ptsT, ptsB):
         plt.plot([a[0], b[0]], [a[1], b[1]], 'ro', linestyle="--")
-        plt.xlim(0, 512);
+        plt.xlim(0, 512)
         plt.ylim(0, 512)
 
     plt.axis('off')

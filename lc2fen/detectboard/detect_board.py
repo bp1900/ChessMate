@@ -95,11 +95,7 @@ def __layer(img):
     img.crop(four_points)
 
 
-def detect(
-    input_image: np.ndarray,
-    output_board: str,
-    board_corners: (list[list[int]] | None) = None,
-):
+def detect(input_image: np.ndarray, output_board: str, board_corners: (list[list[int]] | None) = None,):
     """Detect the board position and store the cropped detected board.
 
     This function detects the board position in `input_image` and stores
@@ -119,6 +115,7 @@ def detect(
     :return: Final ImageObject with which to compute the corners if
     necessary.
     """
+
     # Check if we can skip full board detection (if board position is
     # already known)
     if board_corners is not None:
@@ -132,11 +129,12 @@ def detect(
             return image
 
     # Read the input image and store the cropped detected board
-    n_layers = 3
+    n_layers = 2
     image = ImageObject(input_image)
     for i in range(n_layers):
         __layer(image)
         debug.DebugImage(image["orig"]).save(f"end_iteration{i}")
+        cv2.imwrite(output_board+'_layer'+str(i)+'.png', image["orig"])
     cv2.imwrite(output_board, image["orig"])
 
     return image
@@ -154,9 +152,8 @@ def compute_corners(image_object):
     corners and the coordinates of each of the corners of the chessboard
     squares as a pair of `board_corners` and `square_corners`.
     """
-    board_corners, square_corners = __original_points_coords(
-        image_object.get_points()
-    )
+
+    board_corners, square_corners = __original_points_coords(image_object.get_points())
 
     debug.DebugImage(image_object.get_images()[0]["orig"]).points(
         square_corners, size=50, color=(0, 0, 255)

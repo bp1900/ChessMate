@@ -11,7 +11,7 @@ from lc2fen.predict_board import detect_input_board
 from utils import create_dir
 
 from chessboard_recognition import chessboard_recognition
-from chess_piece_recognition import chess_pieces_detector2
+from chess_piece_recognition import chess_pieces_detector, chess_pieces_detector2
 
 import pyrealsense2 as rs       # https://www.youtube.com/watch?v=CmDO-w56qso&ab_channel=NickDiFilippo
 
@@ -29,7 +29,7 @@ def main():
     # board_path = glob.glob(f"{folder_path}cc*.jpg")
 
     # Detect chessboard for each image
-    for image_path in board_path:
+    for i, image_path in enumerate(board_path):
         print(image_path)
 
         # Chessboard recognition
@@ -37,8 +37,8 @@ def main():
         print("Chessboard recognition DONE!")
 
         # Chess piece recognition
-        # detections, boxes = chess_pieces_detector(image)
-        chess_pieces_detector2(image_path)
+        detections, boxes = chess_pieces_detector(image)
+        # chess_pieces_detector2(image_path)
         print("Chess pieces detected DONE!")
 
 
