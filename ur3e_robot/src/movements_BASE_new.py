@@ -201,7 +201,7 @@ def winning_orientation_position(movement):
     print(quadrant_init)
     print(quadrant_final)
 
-    if (quadrant_init[0] == 0 or quadrant_init == 3) and (quadrant_final[0] > 0 and quadrant_final[0] < 3):
+    if (quadrant_init[0] == 0 or quadrant_init[0] == 3) and (quadrant_final[0] > 0 and quadrant_final[0] < 3):
         quadrant_final[0] = quadrant_init[0]
         quadrant_final[1] = quadrant_init[1]
 
