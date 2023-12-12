@@ -1,0 +1,10 @@
+    Game Mode Selection:
+        It would be beneficial to have a clear selection mechanism for the different modes of play (human vs. human, human vs. engine, etc.). This could be implemented as a menu or buttons in the GUI.
+        Depending on the selected mode, the system's behavior (such as how it responds to moves and who makes the next move) will change.
+
+    Voice and Image Recognition Integration:
+        For voice recognition, after processing and validating the spoken move, update the GUI board and check if an engine move is needed (in human vs. engine mode).
+        For image recognition, once a move is recognized and validated, the same procedure should follow – update the GUI and possibly trigger an engine move.
+
+    Endgame Handling:
+        Clearly define how the game concludes in different scenarios (checkmate, stalemate, draw, resignation). This might include disabling further moves, displaying a concluding message, and offering options to restart or exit.
