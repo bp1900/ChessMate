@@ -4,6 +4,7 @@ import tkinter as tk
 from PIL import Image, ImageTk
 import tkinter.simpledialog
 from tkinter import PhotoImage
+import tkinter.messagebox as messagebox
 import cairosvg
 
 class ChessGUI:
@@ -25,23 +26,16 @@ class ChessGUI:
         self.source_square = None
         self.highlight_square = None
 
-        self.game_mode = "human-human"  # Default game mode
-        self.player_color = chess.WHITE  # Default player color when playing against engine
-
         # Add a forfeit button
-        self.forfeit_button = tk.Button(self.root, text="Forfeit", command=self.handle_forfeit, font=("Verdana", 14))
+        self.forfeit_button = tk.Button(self.root, text="Forfeit", command=self.handle_forfeit, font=("Verdana", 20), height=2, width=20)
         self.forfeit_button.pack(pady=10)
 
         # Add a reset button
-        self.reset_button = tk.Button(self.root, text="Reset", command=self.reset_game, font=("Verdana", 14))
+        self.reset_button = tk.Button(self.root, text="Reset", command=self.reset_game, font=("Verdana", 20), height=2, width=20)
         self.reset_button.pack(pady=10)
 
     def set_controller(self, controller):
         self.controller = controller
-
-    def set_game_mode(self, mode, player_color=chess.WHITE):
-        self.controller.game_mode = mode
-        self.controller.player_color = player_color
 
     def handle_forfeit(self):
         # Forfeit the game
@@ -49,21 +43,25 @@ class ChessGUI:
         self.update_game_status()
 
     def game_status_text(self):
+        status = ""
         if self.board.is_checkmate():
-            return "Checkmate! " + ("Black wins!" if self.board.turn == chess.WHITE else "White wins!")
+            status = "Checkmate! " + ("Black wins!" if self.board.turn == chess.WHITE else "White wins!")
         elif self.board.is_stalemate():
-            return "Stalemate! Draw!"
+            status = "Stalemate! Draw!"
         elif self.board.is_insufficient_material():
-            return "Draw due to insufficient material!"
+            status = "Draw due to insufficient material!"
         elif self.board.can_claim_draw():
-            return "Draw can be claimed!"
+            status = "Draw can be claimed!"
         elif self.board.is_game_over():
-            return "Game over!"
+            status = "Game over!"
         elif hasattr(self, 'forfeit') and self.forfeit:
             winner = "Black" if self.board.turn == chess.WHITE else "White"
-            return f"Game forfeited! {winner} wins!"
-        else:
-            return ""
+            status = f"Game forfeited! {winner} wins!"
+
+        if status:
+            show_custom_dialog('Game Over', status)
+
+        return status
 
     def current_turn_text(self):
         check_status = ""
@@ -128,20 +126,22 @@ class ChessGUI:
             # Keep a reference to the image.
             self.canvas.dragged_piece_image = self.selected_piece
 
-
-    def update_display(self, fen, last_move=None, game_status=None):
+    def update_display(self, fen, last_move=None):
         # Update the board with the new FEN
         self.board.set_fen(fen)
 
         # Update last move and game status if provided
         self.last_move = last_move
-        game_status = game_status if game_status else self.game_status_text()
-
-        # Redraw the board and update the turn label
         self.display_board()
-        self.turn_label.config(text=game_status)
 
-    
+        game_status = self.game_status_text()
+        # Redraw the board and update the turn label
+
+        if game_status:
+            self.turn_label.config(text=game_status)
+        else:
+            self.turn_label.config(text=self.current_turn_text())
+
     def on_release(self, event):
         self.canvas.delete("dragged_piece")
         dest_square = self.get_square_from_coords(event.x, event.y)
@@ -198,10 +198,12 @@ class PromotionDialog(tk.Toplevel):
         super().__init__(parent)
         self.piece = None  # To store the selected piece
         self.title("Pawn Promotion")
-        self.geometry("200x100")  # Set the size of the dialog
+        self.geometry("560x125")  # Set the size of the dialog
 
         # Create a button for each piece
         for piece_type, img in images.items():
+            # Resize the image
+            img = img.zoom(3)  # Increase the size by a factor of 2
             btn = tk.Button(self, image=img, command=lambda p=piece_type: self.select_piece(p))
             btn.image = img  # Keep a reference
             btn.pack(side=tk.LEFT)
@@ -213,3 +215,22 @@ class PromotionDialog(tk.Toplevel):
     def select_piece(self, piece_type):
         self.piece = piece_type
         self.destroy()
+
+def show_custom_dialog(title, message):
+    # Create a top-level window
+    popup = tk.Toplevel()
+    popup.title(title)
+    popup.geometry("400x200")  # Width x Height
+
+    # Add a message
+    message_label = tk.Label(popup, text=message, wraplength=350, font=("Verdana", 40))
+    message_label.pack(pady=10)
+
+    # Add a dismiss button
+    dismiss_button = tk.Button(popup, text="Dismiss", command=popup.destroy)
+    dismiss_button.pack()
+
+    # Make the window modal
+    popup.grab_set()
+    popup.focus_set()
+    popup.wait_window()

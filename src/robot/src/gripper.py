@@ -3,7 +3,7 @@ import time
 
 
 class GripperManager:
-    def __init__(self, host='10.10.73.239', port=30002, sleep_time=2, test_mode=False):
+    def __init__(self, host='10.10.73.239', port=30002, sleep_time=2, test_mode=True):
         self.host = host  # The remote host (robot IP)
         self.port = port  # The same port as used by the server
         self.sleep_time = sleep_time
