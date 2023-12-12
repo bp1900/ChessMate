@@ -39,7 +39,7 @@ class ChessController:
             self.board.push(move)
             self.gui.update_display(self.board.fen(), last_move=move, game_status=self.get_game_status_text())
 
-            self.robot.move_piece(move)
+            #self.robot.move_piece(move)
 
             if self.robot_movement:
                 if captured_piece:
