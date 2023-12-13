@@ -5,6 +5,7 @@ import chess.engine
 import random
 #import whisper
 import os
+import time
 
 class ChessEngine:
     def __init__(self, engine_path, ):
