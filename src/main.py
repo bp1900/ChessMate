@@ -20,6 +20,12 @@ def launch_game_mode(mode_selection_window, mode, color=None):
     # Set the controller in the GUI
     gui.set_controller(controller)
 
+    # Start the engine game if it's an engine-related mode
+    if mode in ["human-engine", "engine-engine"]:
+        # Schedule the start of the engine game after the GUI starts
+        gui.root.after(100, controller.start_engine_game)
+
+
     # Start the main GUI
     gui.run()
 
@@ -45,6 +51,10 @@ def main():
     human_vs_engine_black_button = tk.Button(mode_frame, text="Human (Black) vs Engine", command=lambda: launch_game_mode(mode_selection_window, "human-engine", chess.BLACK), height=2, width=20)
     human_vs_engine_black_button.config(font=large_font)
     human_vs_engine_black_button.pack(side=tk.LEFT, padx=10)
+
+    engine_vs_engine_button = tk.Button(mode_frame, text="Engine vs Engine", command=lambda: launch_game_mode(mode_selection_window, "engine-engine"), height=2, width=20)
+    engine_vs_engine_button.config(font=large_font)
+    engine_vs_engine_button.pack(side=tk.LEFT, padx=10)
 
     # Start the mode selection window
     mode_selection_window.mainloop()

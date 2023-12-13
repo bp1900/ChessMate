@@ -1,8 +1,7 @@
 
 import chess
 import chess.engine
-import random
-#import whisper
+import time
 
 class ChessEngine:
     def __init__(self, engine_path, ):
@@ -22,9 +21,6 @@ class ChessController:
 
         self.game_mode = mode
         self.player_color = color
-
-        if self.game_mode == "human-engine" and self.player_color == chess.BLACK:
-            self.check_and_make_engine_move()
 
         self.robot_movement = False
 
@@ -46,11 +42,15 @@ class ChessController:
                 if captured_piece:
                     self.send_capture_robot(move, captured_piece)
                 self.send_move_robot(move)
+                
+                if self.game_mode == "engine-engine":
+                    self.gui.root.after(100, self.check_and_make_engine_move)
             elif self.game_mode == "human-engine": # not so sure about this
                 print('Robot Turn:')
                 self.check_and_make_engine_move()
                 print()
                 print('Human Turn:')
+
         else:
             print("Illegal move!")
 
@@ -70,6 +70,10 @@ class ChessController:
             self.robot_movement = True
             engine_move = self.engine.compute_move(self.board)
             self.handle_move(engine_move)
+        elif self.game_mode == "engine-engine":
+            self.robot_movement = True
+            engine_move = self.engine.compute_move(self.board)
+            self.handle_move(engine_move)
 
     def reset_board(self):
         self.board.reset()
@@ -79,6 +83,12 @@ class ChessController:
         """Modify the game mode."""
         self.game_mode = mode
         self.player_color = player_color
+
+    def start_engine_game(self):
+        if self.game_mode == "human-engine" and self.player_color == chess.BLACK:
+            self.check_and_make_engine_move()
+        elif self.game_mode == "engine-engine":
+            self.check_and_make_engine_move()
 
     def piece_to_verbose(self, piece):
         """Convert a chess.Piece to a verbose string."""

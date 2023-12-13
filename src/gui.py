@@ -34,6 +34,7 @@ class ChessGUI:
         self.reset_button = tk.Button(self.root, text="Reset", command=self.reset_game, font=("Verdana", 20), height=2, width=20)
         self.reset_button.pack(pady=10)
 
+
     def set_controller(self, controller):
         self.controller = controller
 
