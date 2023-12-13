@@ -17,11 +17,10 @@ class Robot:
 
     def _initial_position(self):
         orientation = orientation_position(None, None)[0]
-        self.gm.move_robot(self.original_pose_coord, orientation, 'up', self.original_joint, wait_time=2, velocity=0.2)
+        self.gm.move_robot(self.original_pose_coord, orientation, 'up', self.original_joint, wait_time=2)
 
     def move_piece(self, movement):
         self._initial_position()
-
         # Extract position and orientations
         position = self.bp.decode_move(movement)
         q_init, q_final, orientation_init, orientation_final = self.posManager.qs_orient_position(movement)
@@ -44,6 +43,7 @@ class Robot:
         self.gm.open_gripper()
         self.gm.move_robot([position[2], position[3]], orientation_final, 'up', q_final)
         self.gm.close_gripper()
+        self._initial_position()
 
     def capture_piece(self, movement):
         self._initial_position()

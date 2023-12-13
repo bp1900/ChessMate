@@ -25,4 +25,4 @@ class BoardPositions:
         target = self.get_coordinates(row2_idx, col2_idx)
 
         print(f'Source: {source}', f'Target: {target}')
-        return [source[1], source[0], target[1], target[0]]
+        return [source[0], source[1], target[0], target[1]]

@@ -3,7 +3,7 @@ import time
 
 
 class GripperManager:
-    def __init__(self, host='10.10.73.239', port=30002, sleep_time=2, test_mode=True):
+    def __init__(self, host='10.10.73.239', port=30002, sleep_time=2, test_mode=False):
         self.host = host  # The remote host (robot IP)
         self.port = port  # The same port as used by the server
         self.sleep_time = sleep_time
@@ -47,16 +47,18 @@ class GripperManager:
         else:
             print(f"Command sent (test mode): {command}")
 
-    def move_robot(self, position, orientation, fixed_z_height, q_vals=None, wait_time=3.5, velocity=0.1):
+    def move_robot(self, position, orientation, fixed_z_height, q_vals=None, wait_time=3.5, velocity=0.2):
         if q_vals is None:
-            q_vals = "[...]"
+            q_vals = ""
+        else:
+            q_vals = str(q_vals) + ','
 
         if fixed_z_height == 'up':
             fixed_z_height = self.fixed_z_up
         else:
             fixed_z_height = self.fixed_z_down
 
-        command = f"movej(get_inverse_kin(p[{position[0]}, {position[1]}, {fixed_z_height}, {orientation[0]}, {orientation[1]}, {orientation[2]}], {q_vals}, maxPositionError=1e-1, maxOrientationError=1e-3), a=1.0, v={velocity}, t={wait_time})\n"
+        command = f"movej(get_inverse_kin(p[{position[0]}, {position[1]}, {fixed_z_height}, {orientation[0]}, {orientation[1]}, {orientation[2]}], {q_vals} maxPositionError=1e-1, maxOrientationError=1e-3), a=0.2, v={velocity}, t={wait_time})\n"
         self.send_command(command)
         time.sleep(self.sleep_time)
 
@@ -131,9 +133,9 @@ def send_info(v):
     # print(data)
 
     if v == 0:
-        f = open("gripper_CIR_close.script", "rb")
+        f = open(r"src\robot\src\\gripper_CIR_close.script", "rb")
     else:
-        f = open("gripper_CIR_open.script", "rb")
+        f = open(r"src\robot\src\gripper_CIR_open.script", "rb")
     # l = f.read(2048)
     # print(l)
 
