@@ -17,7 +17,7 @@ class ChessEngine:
             return result.move
 
 class ChessController:
-    def __init__(self, gui, robot, mode, color, engine_path=r'C:\Users\blanca.llaurado\Desktop\ChessPlayer\third_party\stockfish\stockfish-windows-x86-64-avx2.exe'):
+    def __init__(self, gui, robot, mode, color, engine_path=r'C:\Users\blanca.llaurado\Desktop\CIR-integracio_2\third_party\stockfish\stockfish-windows-x86-64-avx2.exe'):
         self.board = chess.Board()
         self.gui = gui
         self.robot = robot
@@ -31,11 +31,15 @@ class ChessController:
     def handle_move(self, move):
         """Process and apply a move from any source."""
 
+        current_piece = self.board.piece_at(move.from_square)
+        print(current_piece)
+
         if not self.robot_movement and self.is_pawn_promotion_candidate(move):
             self.gui.ask_promotion_piece()
             move = chess.Move(move.from_square, move.to_square, promotion=chess.QUEEN)
 
-        if self.is_move_legal(move):
+        # if self.is_move_legal(move):
+        if True:
             # Check for captured
             captured_piece = self.board.piece_at(move.to_square) if self.board.is_capture(move) else None
 
@@ -46,24 +50,48 @@ class ChessController:
             self.gui.update_display(self.board.fen(), last_move=move)
 
             if True or self.robot_movement:
-                if captured_piece:
-                    self.send_capture_robot(move, captured_piece)
                 
-                if is_castling_move:
-                    self.handle_castling_robot(move)
-                else:
-                    self.send_move_robot(move)
+                if captured_piece is not None and captured_piece.piece_type == chess.KING:
+                    self.send_move_robot(move, is_checkmate=True)     
+
+                else:           
                 
-                if self.game_mode == "engine-engine":
-                    self.gui.root.after(100, self.check_and_make_engine_move)
+                    if captured_piece:
+                        self.send_capture_robot(move, captured_piece)
+                    
+                    if is_castling_move:
+                        self.handle_castling_robot(move)
+                    else:
+                        self.send_move_robot(move)
+                    
+                    if self.game_mode == "engine-engine":
+                        self.gui.root.after(100, self.check_and_make_engine_move)
+
             elif self.game_mode == "human-engine": # not so sure about this
                 print('Robot Turn:')
                 self.check_and_make_engine_move()
                 print()
                 print('Human Turn:')
 
-        else:
-            print("Illegal move!")
+            is_checkmate = self.board.is_check() #  self.board.is_checkmate()
+            print(is_checkmate)
+            if is_checkmate:
+
+                color_current_piece = current_piece.color
+                if color_current_piece == chess.WHITE:
+                    king_square_index = self.board.king(chess.BLACK)
+                else:
+                    king_square_index = self.board.king(chess.WHITE)
+
+                king_square_name = chess.square_name(king_square_index)
+
+                move_kill = chess.Move(move.to_square, chess.parse_square(king_square_name))
+
+                self.send_move_robot(move_kill, is_checkmate=True)
+
+
+        # else:
+        #     print("Illegal move!")
 
     def handle_castling_robot(self, move):
         king_to_square, rook_to_square = self.create_castling_squares(move)
@@ -141,18 +169,18 @@ class ChessController:
     # Robotic arm communication #
     #############################
 
-    def send_move_robot(self, move):
+    def send_move_robot(self, move, is_checkmate=False):
         """Send the move to the robotic arm."""
 
         print(f'[ROBOT - PIECE MOVEMENT]: {move}')
-        self.robot.move_piece(move)
+        self.robot.move_piece(move, checkmate=is_checkmate)
 
         # Notify the robotic arm to move turn has finished
         self.robot_movement = False
 
-    def send_capture_robot(self, move, captured_piece):
+    def send_capture_robot(self, move, captured_piece, is_checkmate=False):
         """Send the capture move to the robotic arm."""
         square_name = chess.square_name(move.to_square)
         verbose_piece = self.piece_to_verbose(captured_piece)
         print(f'[ROBOT - CAPTURED PIECE {verbose_piece} AT]: {square_name}')
-        self.robot.capture_piece(move)
+        self.robot.capture_piece(move, is_checkmate)

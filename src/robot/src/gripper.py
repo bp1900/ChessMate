@@ -10,7 +10,9 @@ class GripperManager:
         self.test_mode = test_mode
 
         self.fixed_z_up = 0.105926875934
-        self.fixed_z_down = .0353469060551
+        self.fixed_z_down_take  = .0353469060551
+        self.fixed_z_down_leave = .037
+        self.fixed_z_kill = .06
 
         if not self.test_mode:
             print('Connecting to arm...')
@@ -23,7 +25,7 @@ class GripperManager:
     def reconnect(self):
         if not self.test_mode:
             self.s.close()
-            time.sleep(1)
+            # time.sleep(1)
             self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.s.connect((self.host, self.port))
 
@@ -47,7 +49,7 @@ class GripperManager:
         else:
             print(f"Command sent (test mode): {command}")
 
-    def move_robot(self, position, orientation, fixed_z_height, q_vals=None, wait_time=3.5, velocity=0.2):
+    def move_robot(self, position, orientation, fixed_z_height, q_vals=None, wait_time=2, velocity=0.2, checkmate=False):
         if q_vals is None:
             q_vals = ""
         else:
@@ -55,12 +57,18 @@ class GripperManager:
 
         if fixed_z_height == 'up':
             fixed_z_height = self.fixed_z_up
+        elif fixed_z_height == 'down_take':
+            fixed_z_height = self.fixed_z_down_take
         else:
-            fixed_z_height = self.fixed_z_down
+            fixed_z_height = self.fixed_z_down_leave
+
+        if checkmate:
+            fixed_z_height = self.fixed_z_kill
 
         command = f"movej(get_inverse_kin(p[{position[0]}, {position[1]}, {fixed_z_height}, {orientation[0]}, {orientation[1]}, {orientation[2]}], {q_vals} maxPositionError=1e-1, maxOrientationError=1e-3), a=0.2, v={velocity}, t={wait_time})\n"
         self.send_command(command)
-        time.sleep(self.sleep_time)
+        # time.sleep(self.sleep_time)
+        time.sleep(wait_time)
 
 '''
 class GripperManager:
