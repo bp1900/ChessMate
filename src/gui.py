@@ -12,6 +12,7 @@ class ChessGUI:
 
     def __init__(self):
         self.board = chess.Board()
+        self.possible_moves_displayed = False
         self.root = tk.Tk()
         self.canvas = tk.Canvas(self.root, width=self.BOARD_SIZE, height=self.BOARD_SIZE)
         self.canvas.pack()
@@ -26,17 +27,50 @@ class ChessGUI:
         self.source_square = None
         self.highlight_square = None
 
+        
+        # Create a frame for the buttons
+        self.button_frame = tk.Frame(self.root)
+        self.button_frame.pack(pady=10)
+
+        # Add a wrong move button
+        self.in_correction_mode = False
+        self.wrong_move_button = tk.Button(self.button_frame, text="Wrong Move", command=self.handle_wrong_move, font=("Verdana", 20), height=2, width=20)
+        self.wrong_move_button.grid(row=0, column=0, columnspan=2, pady=10)  # Span two columns
+
         # Add a forfeit button
-        self.forfeit_button = tk.Button(self.root, text="Forfeit", command=self.handle_forfeit, font=("Verdana", 20), height=2, width=20)
-        self.forfeit_button.pack(pady=10)
+        self.forfeit_button = tk.Button(self.button_frame, text="Forfeit", command=self.handle_forfeit, font=("Verdana", 20), height=2, width=20)
+        self.forfeit_button.grid(row=1, column=0, pady=10)  # Place in the left column of the second row
 
         # Add a reset button
-        self.reset_button = tk.Button(self.root, text="Reset", command=self.reset_game, font=("Verdana", 20), height=2, width=20)
-        self.reset_button.pack(pady=10)
-
+        self.reset_button = tk.Button(self.button_frame, text="Reset", command=self.reset_game, font=("Verdana", 20), height=2, width=20)
+        self.reset_button.grid(row=1, column=1, pady=10)  # Place in the right column of the second row
 
     def set_controller(self, controller):
         self.controller = controller
+
+    def handle_wrong_move(self):
+        # Show a confirmation dialog
+        if messagebox.askyesno("Confirm Action", "Are you sure you want to revert the last move?"):
+            # Allow the user to correct a wrong move
+            self.controller.board.pop()
+            self.update_display(self.controller.board.fen())
+            self.update_game_status()
+            self.wrong_move_button.config(state="disabled")  # Disable the button
+            self.in_correction_mode = True  # Enter correction mode
+
+    def display_possible_moves(self, moves):
+        self.possible_moves_displayed = True
+        colors = ["blue", "green", "red", "yellow", "purple", "orange"]  # Add more colors if needed
+        self.move_color_dict = {}
+
+        possible_arrows = []
+        for i, move in enumerate(moves):
+            color = colors[i % len(colors)]  # Select a color from the list
+            possible_arrows.append(chess.svg.Arrow(move.from_square, move.to_square, color=color))
+            self.move_color_dict[color] = move  # Save the color-move combo
+
+        self.display_board(arrows=possible_arrows)  # Redraw the board with arrows
+        self.show_disambiguation_dialog()
 
     def handle_forfeit(self):
         # Forfeit the game
@@ -81,7 +115,7 @@ class ChessGUI:
         rank_index = min(max(int(y / (self.BOARD_SIZE / 8)), 0), 7)
         return files[file_index] + ranks[rank_index]
 
-    def display_board(self, highlight_square=None):
+    def display_board(self, highlight_square=None, arrows=[]):
         self.canvas.delete("all")
         fill_squares = {}
 
@@ -102,11 +136,48 @@ class ChessGUI:
             fill_squares[king_square] = "#FF634760"  # Tomato color with some transparency
 
         # Generate the SVG with filled squares
-        svg = chess.svg.board(board=self.board, size=self.BOARD_SIZE, fill=fill_squares)
+        svg = chess.svg.board(board=self.board, size=self.BOARD_SIZE, fill=fill_squares, arrows=arrows)
         photo = self.svg_to_photo(svg)
         self.canvas.create_image(0, 0, anchor=tk.NW, image=photo)
         self.canvas.image = photo
         self.turn_label.config(text=self.current_turn_text())
+
+
+    def show_disambiguation_dialog(self):
+        num_buttons = len(self.move_color_dict)
+
+        # Create a top-level window for the dialog
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Select Move")
+
+        # Calculate the height of the window based on the number of buttons
+        height = 70 + 50 * num_buttons
+        dialog.geometry(f"300x{height}")  # Adjust the width as needed
+
+        # Add a label with instructions
+        label = tk.Label(dialog, text="Select the correct move:", font=("Verdana", 15))
+        label.pack(pady=10)
+
+        # Function to handle move selection
+        def on_move_select(move):
+            self.controller.handle_move(move)
+            dialog.destroy()
+            self.possible_moves_displayed = False
+
+        # Sort the moves by color
+        sorted_moves = sorted(self.move_color_dict.items(), key=lambda item: item[0])
+
+        # Create a button for each possible move
+        for i, (color, move) in enumerate(sorted_moves, start=1):
+            move_button = tk.Button(dialog, text=f"{i}. {move}", bg=color, command=lambda m=move: on_move_select(m), height=2, width=20)
+            move_button.pack(pady=5)
+
+        # Make the window modal
+        dialog.grab_set()
+        dialog.focus_set()
+        dialog.wait_window()
+        self.possible_moves_displayed = False
+
 
     def on_click(self, event):
         square = self.get_square_from_coords(event.x, event.y)
@@ -155,6 +226,10 @@ class ChessGUI:
         
         self.selected_piece = None
         self.highlight_square = None
+        self.wrong_move_button.config(state="normal")  # Enable the 'Wrong Move' button after a move
+
+        if self.in_correction_mode:
+            self.in_correction_mode = False
 
     def update_game_status(self):
         game_status = self.game_status_text()
@@ -170,6 +245,7 @@ class ChessGUI:
         self.forfeit = False
         self.display_board()
         self.turn_label.config(text=self.current_turn_text())
+        self.wrong_move_button.config(state="disabled")  # Disable the 'Wrong Move' button on reset
 
     def run(self):
         self.root.mainloop()

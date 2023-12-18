@@ -1,0 +1,8 @@
+cairosvg
+tkinter
+chess
+tk
+whisper
+scikit-image
+pyrealsense2
+mediapipe
