@@ -6,6 +6,7 @@ import random
 #import whisper
 import os
 import time
+from camera import Camera
 
 class ChessEngine:
     def __init__(self, engine_path, ):
@@ -22,24 +23,40 @@ class ChessController:
         self.gui = gui
         self.robot = robot
         self.engine = ChessEngine(engine_path=engine_path)
+        self.camera = Camera()
+        self.check_camera_interval = 1000
+
+        self.turn = chess.WHITE
 
         self.game_mode = mode
         self.player_color = color
 
         self.robot_movement = False
 
+    def check_for_camera_move(self):
+        """Check for a move made via the camera."""
+        print('Checking for camera move')
+        camera_move = self.camera.recognize_move(self.board, self.turn)
+        if camera_move:
+            # Check if camera move returned one or multiple moves
+            if isinstance(camera_move, list):
+                # Display possible moves in GUI for user selection
+                self.gui.display_possible_moves(camera_move)
+            else:
+                self.handle_move(camera_move)
+        self.gui.root.after(self.check_camera_interval, self.check_for_camera_move)
+
     def handle_move(self, move):
         """Process and apply a move from any source."""
 
         current_piece = self.board.piece_at(move.from_square)
-        print(current_piece)
 
         if not self.robot_movement and self.is_pawn_promotion_candidate(move):
             self.gui.ask_promotion_piece()
             move = chess.Move(move.from_square, move.to_square, promotion=chess.QUEEN)
 
-        # if self.is_move_legal(move):
-        if True:
+        if self.is_move_legal(move):
+        #if True:
             # Check for captured
             captured_piece = self.board.piece_at(move.to_square) if self.board.is_capture(move) else None
 
@@ -89,9 +106,12 @@ class ChessController:
 
                 self.send_move_robot(move_kill, is_checkmate=True)
 
+            
+            self.turn = not self.turn
+            self.camera.sample_board('previous_turn')
 
-        # else:
-        #     print("Illegal move!")
+        else:
+            print("Illegal move!")
 
     def handle_castling_robot(self, move):
         king_to_square, rook_to_square = self.create_castling_squares(move)
@@ -109,7 +129,6 @@ class ChessController:
         rook_move = chess.Move(rook_from, rook_to)
 
         return king_move, rook_move
-        
 
     def is_move_legal(self, move):
         """Check if a move is legal."""
@@ -141,10 +160,19 @@ class ChessController:
         self.game_mode = mode
         self.player_color = player_color
 
-    def start_engine_game(self):
+    def start_game_loop(self):
+        self.check_for_camera_move()
         if self.game_mode == "human-engine" and self.player_color == chess.BLACK:
             self.check_and_make_engine_move()
         elif self.game_mode == "engine-engine":
+            self.check_and_make_engine_move()
+
+    def handle_wrong_move(self):
+        # Reverts the last move
+        self.board.pop()
+        self.gui.update_display(self.board.fen())
+        
+        if self.game_mode == "human-engine" or self.game_mode == "human-human":
             self.check_and_make_engine_move()
 
     def piece_to_verbose(self, piece):
@@ -164,7 +192,7 @@ class ChessController:
         }.get(piece_type, "unknown")
 
         return f"{color} {piece_name}"
-
+    
     #############################
     # Robotic arm communication #
     #############################
@@ -173,7 +201,7 @@ class ChessController:
         """Send the move to the robotic arm."""
 
         print(f'[ROBOT - PIECE MOVEMENT]: {move}')
-        self.robot.move_piece(move, checkmate=is_checkmate)
+        #self.robot.move_piece(move, checkmate=is_checkmate)
 
         # Notify the robotic arm to move turn has finished
         self.robot_movement = False
@@ -183,4 +211,4 @@ class ChessController:
         square_name = chess.square_name(move.to_square)
         verbose_piece = self.piece_to_verbose(captured_piece)
         print(f'[ROBOT - CAPTURED PIECE {verbose_piece} AT]: {square_name}')
-        self.robot.capture_piece(move, is_checkmate)
+        #self.robot.capture_piece(move, is_checkmate)

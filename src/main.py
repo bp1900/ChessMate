@@ -21,10 +21,7 @@ def launch_game_mode(mode_selection_window, mode, color=None):
     gui.set_controller(controller)
 
     # Start the engine game if it's an engine-related mode
-    if mode in ["human-engine", "engine-engine"]:
-        # Schedule the start of the engine game after the GUI starts
-        gui.root.after(100, controller.start_engine_game)
-
+    gui.root.after(100, controller.start_game_loop)
 
     # Start the main GUI
     gui.run()
