@@ -20,11 +20,11 @@ def resize_image(image, max_width=1280, max_height=720):
     return Image
 
 
-def select_points(image, num_points=4):
+def select_points(image, num_points=6):
     points = []
     #resized_image = resize_image(image)
-    cv2.namedWindow("Camera Feed", cv2.WINDOW_NORMAL)
-    cv2.resizeWindow("Camera Feed", 1280, 720) 
+    #cv2.namedWindow("Camera Feed", cv2.WINDOW_NORMAL)
+    #cv2.resizeWindow("Camera Feed", 1280, 720) 
 
     def click_event(event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN and len(points) < num_points:
@@ -72,10 +72,10 @@ def apply_perspective_transform(image, corners, chessboard_size=(7, 7), square_s
     combined_chessboard = np.hstack((last_column, main_chessboard)) # before rotation
 
     # Rotate the image around the y-axis (horizontal flip)
-    rotated_image = cv2.flip(combined_chessboard, 1)
+    #rotated_image = cv2.flip(combined_chessboard, 1)
 
-    cv2.imshow('Warped Image', rotated_image)
-    return rotated_image
+    cv2.imshow('Warped Image', combined_chessboard)
+    return combined_chessboard
 
 def divide_into_squares(warped_image, chessboard_size=(8, 8), extended_last_col_width_cm=7, pixels_per_cm=20):
     squares = []
@@ -99,8 +99,8 @@ def divide_into_squares(warped_image, chessboard_size=(8, 8), extended_last_col_
 # Function to find corners of markers
 def detect_markers(image):
     # Let user manually select points on the markers
-    #selected_points = [(546, 368), (404, 1063), (1292, 360), (1392, 1059), (564, 249), (1281, 232)] 
-    selected_points = select_points(image.copy())
+    selected_points = [(1000, 641), (1008, 983), (608, 638), (544, 983), (996, 581), (622, 579)] 
+    #selected_points = select_points(image.copy())
 
     # Convert image to float and apply SLIC
     #image_float = img_as_float(image)

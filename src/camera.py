@@ -18,8 +18,8 @@ class Camera:
         self._get_corners()
         self._init_hand_detector()
 
-        self.large_threshold = 20
-        self.small_threshold = 10
+        self.large_threshold = 10
+        self.small_threshold = 5
 
         self.sample_board("previous_turn")
         self._init_heatmap()
