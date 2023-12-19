@@ -5,10 +5,12 @@ from robot.src.robot import Robot
 from controller import ChessController
 
 # SETUP
-GRIPPER_TEST_MODE = True
+GRIPPER_TEST_MODE = False
 ENGINE_PATH = r'third_party\stockfish\stockfish-windows-x86-64-avx2.exe'
 TIME_ENGINE = 2
-CAMERA = True
+ENGINE2_PATH = r'third_party\lc0\lc0.exe'
+TIME_ENGINE2 = 0.01
+CAMERA = False
 
 def launch_game_mode(mode_selection_window, mode, color=None):
     # Close the mode selection window
@@ -21,7 +23,7 @@ def launch_game_mode(mode_selection_window, mode, color=None):
     robot = Robot(gripper_test_mode=GRIPPER_TEST_MODE)
 
     # Create the controller with the GUI
-    controller = ChessController(gui, robot, mode, color, engine_path=ENGINE_PATH, time_engine=TIME_ENGINE, camera=CAMERA, gripper_test_mode=GRIPPER_TEST_MODE)
+    controller = ChessController(gui, robot, mode, color, engine_path=ENGINE_PATH, engine2_path=ENGINE2_PATH, time_engine=TIME_ENGINE, time_engine2=TIME_ENGINE2, camera=CAMERA, gripper_test_mode=GRIPPER_TEST_MODE)
 
     # Set the controller in the GUI
     gui.set_controller(controller)

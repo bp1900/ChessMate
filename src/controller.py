@@ -30,15 +30,19 @@ class ChessEngine:
 #################
 
 class ChessController:
-    def __init__(self, gui, robot, mode, color, engine_path, time_engine, camera, gripper_test_mode):
+    def __init__(self, gui, robot, mode, color, engine_path, time_engine, engine2_path, time_engine2, camera, gripper_test_mode):
         self.board = chess.Board()
         self.gui = gui
         self.robot = robot
         self.engine = ChessEngine(engine_path=engine_path, time_limit=time_engine)
+        self.engine2 = ChessEngine(engine_path=engine2_path, time_limit=time_engine2)
+
         self.GRIPPER_TEST_MODE = gripper_test_mode
         if camera:
             max_history = 1 if mode == "human-human" else 2
             self.camera = Camera(max_history=max_history)
+        else:
+            self.camera = None
         self.check_camera_interval = 1000
 
         self.turn = chess.WHITE
@@ -84,7 +88,8 @@ class ChessController:
                 
                     if captured_piece:
                         self.send_capture_robot(move, captured_piece)
-                    elif is_castling_move:
+                    
+                    if is_castling_move:
                         self.handle_castling_robot(move)
                     else:
                         self.send_move_robot(move)
@@ -95,8 +100,7 @@ class ChessController:
             elif self.game_mode == "human-engine": 
                 self.get_engine_move()
 
-            is_checkmate = self.board.is_check() #  self.board.is_checkmate()
-            if is_checkmate:
+            if self.board.is_checkmate():
 
                 color_current_piece = current_piece.color
                 if color_current_piece == chess.WHITE:
@@ -153,7 +157,11 @@ class ChessController:
             self.handle_move(engine_move)
         elif self.game_mode == "engine-engine":
             self.robot_movement = True
-            engine_move = self.engine.compute_move(self.board)
+            if self.turn:
+                engine_move = self.engine.compute_move(self.board)
+            else:
+                engine_move = self.engine2.compute_move(self.board)
+
             self.handle_move(engine_move)
     
     ##################

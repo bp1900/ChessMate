@@ -12,8 +12,19 @@ def chess_square_to_camera_perspective(square_idx):
     return flipped_row * 8 + col
 
 
+def resize_image(image, max_width=1280, max_height=720):
+    height, width = image.shape[:2]
+    if width > max_width or height > max_height:
+        scaling_factor = min(max_width / width, max_height / height)
+        return cv2.resize(image, None, fx=scaling_factor, fy=scaling_factor, interpolation=cv2.INTER_AREA)
+    return Image
+
+
 def select_points(image, num_points=4):
     points = []
+    #resized_image = resize_image(image)
+    cv2.namedWindow("Camera Feed", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("Camera Feed", 1280, 720) 
 
     def click_event(event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN and len(points) < num_points:
@@ -88,10 +99,8 @@ def divide_into_squares(warped_image, chessboard_size=(8, 8), extended_last_col_
 # Function to find corners of markers
 def detect_markers(image):
     # Let user manually select points on the markers
-    cv2.namedWindow("Camera Feed", cv2.WINDOW_NORMAL)
-    cv2.resizeWindow("Camera Feed", 1280, 720) 
-    selected_points = [(546, 368), (404, 1063), (1292, 360), (1392, 1059), (564, 249), (1281, 232)] 
-    #selected_points = select_points(image.copy())
+    #selected_points = [(546, 368), (404, 1063), (1292, 360), (1392, 1059), (564, 249), (1281, 232)] 
+    selected_points = select_points(image.copy())
 
     # Convert image to float and apply SLIC
     #image_float = img_as_float(image)
