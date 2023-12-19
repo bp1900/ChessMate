@@ -3,8 +3,8 @@ from robot.src.MovementManager import MovementManager, decode_movement, orientat
 from robot.src.gripper import GripperManager
 
 class Robot:
-    def __init__(self):
-        self.gm = GripperManager()
+    def __init__(self, gripper_test_mode=False):
+        self.gm = GripperManager(test_mode=gripper_test_mode)
         self.bp = BoardPositions(x0=0.43646, y0=-0.2545, x7=0.15070, y7=0.02702)
         self.posManager = MovementManager()
         self.gm.send_command(f"set_tcp(p[0.0,0.0,0.2286,0.0,0.0,0.0])\n")
@@ -19,11 +19,11 @@ class Robot:
         # orientation = orientation_position(None, None)[0]
         orientation = self.box_orient
         # self.gm.move_robot(self.original_pose_coord, orientation, 'up', self.original_joint, wait_time=2)
-        self.gm.move_robot(self.original_pose_coord, orientation, 'up', wait_time=2)
+        self.gm.move_robot(self.original_pose_coord, orientation, 'up')
 
     def move_piece(self, movement, checkmate=False):
         self._initial_position()
-        
+
         # Extract position and orientations
         position = self.bp.decode_move(movement)
         q_init, q_final, orientation_init, orientation_final = self.posManager.qs_orient_position(movement)

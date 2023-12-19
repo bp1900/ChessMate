@@ -3,7 +3,7 @@ import time
 
 
 class GripperManager:
-    def __init__(self, host='10.10.73.239', port=30002, sleep_time=2, test_mode=False):
+    def __init__(self, host='10.10.73.237', port=30002, sleep_time=2, test_mode=False):
         self.host = host  # The remote host (robot IP)
         self.port = port  # The same port as used by the server
         self.sleep_time = sleep_time
@@ -49,7 +49,7 @@ class GripperManager:
         else:
             print(f"Command sent (test mode): {command}")
 
-    def move_robot(self, position, orientation, fixed_z_height, q_vals=None, wait_time=2, velocity=0.2, checkmate=False):
+    def move_robot(self, position, orientation, fixed_z_height, q_vals=None, wait_time=3, velocity=0.2, checkmate=False):
         if q_vals is None:
             q_vals = ""
         else:
@@ -65,7 +65,8 @@ class GripperManager:
         if checkmate:
             fixed_z_height = self.fixed_z_kill
 
-        command = f"movej(get_inverse_kin(p[{position[0]}, {position[1]}, {fixed_z_height}, {orientation[0]}, {orientation[1]}, {orientation[2]}], {q_vals} maxPositionError=1e-1, maxOrientationError=1e-3), a=0.2, v={velocity}, t={wait_time})\n"
+        command = f"movej(get_inverse_kin(p[{position[0]}, {position[1]}, {fixed_z_height}, {orientation[0]}, {orientation[1]}, {orientation[2]}], {q_vals} maxPositionError=1e-1, maxOrientationError=1e-3), a=0.02, v={velocity}, t={wait_time})\n"
+        # command = f"movej(get_inverse_kin(p[{position[0]}, {position[1]}, {fixed_z_height}, {orientation[0]}, {orientation[1]}, {orientation[2]}], {q_vals} maxPositionError=1e-1, maxOrientationError=1e-3), a=0.1, v={velocity})\n"
         self.send_command(command)
         # time.sleep(self.sleep_time)
         time.sleep(wait_time)
@@ -123,7 +124,7 @@ class GripperManager:
 
 # POSSIBLEMENT POSAR AIXO DINS LA CLASSE?
 def send_info(v):
-    HOST = "10.10.73.239" # The remote host (robot IP)
+    HOST = "10.10.73.237" # The remote host (robot IP)
     PORT = 30002 # The same port as used by the server
 
     # gripper = rpc_factor("xmlrpc", "http://"+HOST+":41414")

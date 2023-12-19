@@ -16,13 +16,15 @@ import cv2
 import pyrealsense2 as rs       # https://www.youtube.com/watch?v=CmDO-w56qso&ab_channel=NickDiFilippo
 
 
+
 def main():
 
     # Connect camera
     pipe = rs.pipeline()
     cfg = rs.config()
-    cfg.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
-    cfg.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+    cfg.disable_all_streams()
+    cfg.enable_stream(rs.stream.color, 1920, 1080, rs.format.bgr8, 30)
+    #cfg.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
     pipe.start(cfg)
 
     # Save path of images and predictions
@@ -36,20 +38,17 @@ def main():
 
         # Frame
         frame = pipe.wait_for_frames()
-        depth_frame = frame.get_depth_frame()
         color_frame = frame.get_color_frame()
 
-        depth_image = np.asanyarray(depth_frame.get_data())
         color_image = np.asanyarray(color_frame.get_data())
 
         cv2.imshow('rgb', color_image)
-        cv2.imshow('depth', depth_image)
 
         key = cv2.waitKey(1)
 
         if key == 13:  # Check for ENTER key
             timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-            # cv2.imwrite(f'color_image_{timestamp}.png', color_image)
+            cv2.imwrite(f'color_image_{timestamp}.png', color_image)
             # cv2.imwrite(f'depth_image_{timestamp}.png', depth_image)
 
         elif key == ord('q'):

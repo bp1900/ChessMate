@@ -1,3 +1,0 @@
-    Voice and Image Recognition Integration:
-        For voice recognition, after processing and validating the spoken move, update the GUI board and check if an engine move is needed (in human vs. engine mode).
-        For image recognition, once a move is recognized and validated, the same procedure should follow – update the GUI and possibly trigger an engine move.

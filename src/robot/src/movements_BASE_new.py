@@ -23,7 +23,7 @@ def main():
 
         # Move to the original position
         #command = f"movej(get_inverse_kin(p[{original_pose_coord[0]}, {original_pose_coord[1]}, {'up'}, {orientation[0]}, {orientation[1]}, {orientation[2]}], {original_joint}), a=1., v=0.2, t=3)\n"
-        gm.move_robot(original_pose_coord, orientation, 'up', original_joint, wait_time=2, velocity=0.2)
+        gm.move_robot(original_pose_coord, orientation, 'up', original_joint, wait_time=2)
 
         # Movement: obtain positions
         movement = input("Enter the movement in the following format (e.g. a1b20)") # --> Last value means: 0 = not killing // 1 = killing 

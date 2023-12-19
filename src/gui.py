@@ -8,7 +8,7 @@ import tkinter.messagebox as messagebox
 import cairosvg
 
 class ChessGUI:
-    BOARD_SIZE = 1000
+    BOARD_SIZE = 600
 
     def __init__(self):
         self.board = chess.Board()
@@ -27,7 +27,6 @@ class ChessGUI:
         self.source_square = None
         self.highlight_square = None
 
-        
         # Create a frame for the buttons
         self.button_frame = tk.Frame(self.root)
         self.button_frame.pack(pady=10)
@@ -38,8 +37,8 @@ class ChessGUI:
         self.wrong_move_button.grid(row=0, column=0, columnspan=2, pady=10)  # Span two columns
 
         # Add a forfeit button
-        self.forfeit_button = tk.Button(self.button_frame, text="Forfeit", command=self.handle_forfeit, font=("Verdana", 20), height=2, width=20)
-        self.forfeit_button.grid(row=1, column=0, pady=10)  # Place in the left column of the second row
+        #self.forfeit_button = tk.Button(self.button_frame, text="Forfeit", command=self.handle_forfeit, font=("Verdana", 20), height=2, width=20)
+        #self.forfeit_button.grid(row=1, column=0, pady=10)  # Place in the left column of the second row
 
         # Add a reset button
         self.reset_button = tk.Button(self.button_frame, text="Reset", command=self.reset_game, font=("Verdana", 20), height=2, width=20)
@@ -50,13 +49,11 @@ class ChessGUI:
 
     def handle_wrong_move(self):
         # Show a confirmation dialog
-        if messagebox.askyesno("Confirm Action", "Are you sure you want to revert the last move?"):
+        if messagebox.askyesno("Confirm Action", "Are you sure you want to revert the last move? If yes, please modify the board on the Interface."):
             # Allow the user to correct a wrong move
-            self.controller.board.pop()
-            self.update_display(self.controller.board.fen())
-            self.update_game_status()
+            self.controller.handle_wrong_move()
+            self.in_correction_mode = True
             self.wrong_move_button.config(state="disabled")  # Disable the button
-            self.in_correction_mode = True  # Enter correction mode
 
     def display_possible_moves(self, moves):
         self.possible_moves_displayed = True
@@ -226,10 +223,11 @@ class ChessGUI:
         
         self.selected_piece = None
         self.highlight_square = None
-        self.wrong_move_button.config(state="normal")  # Enable the 'Wrong Move' button after a move
 
         if self.in_correction_mode:
             self.in_correction_mode = False
+            self.controller.exit_correction_mode()
+            self.wrong_move_button.config(state="normal")
 
     def update_game_status(self):
         game_status = self.game_status_text()
@@ -254,8 +252,8 @@ class ChessGUI:
         # Popup dialog for pawn promotion
         promotion_piece = self.ask_promotion_piece()
         promoted_move = chess.Move(move.from_square, move.to_square, promotion_piece)
-        self.board.push(promoted_move)
-        self.display_board()
+        return promoted_move
+        #self.display_board()
 
     def ask_promotion_piece(self):
         # Load SVG images for each piece and convert to PhotoImage
