@@ -2,15 +2,18 @@ import chess
 import tkinter as tk
 from gui import ChessGUI
 from robot.src.robot import Robot
-from controller import ChessController
+from controller import ChessController, DetectionController
+from chessEngine import ChessEngine
+from camera import Camera
+import queue
 
 # SETUP
-GRIPPER_TEST_MODE = False
+GRIPPER_TEST_MODE = True
 ENGINE_PATH = r'third_party\stockfish\stockfish-windows-x86-64-avx2.exe'
 TIME_ENGINE = 2
 ENGINE2_PATH = r'third_party\lc0\lc0.exe'
 TIME_ENGINE2 = 0.01
-CAMERA = False
+CAMERA = True
 
 def launch_game_mode(mode_selection_window, mode, color=None):
     # Close the mode selection window
@@ -22,17 +25,35 @@ def launch_game_mode(mode_selection_window, mode, color=None):
     # Create the Robot controller
     robot = Robot(gripper_test_mode=GRIPPER_TEST_MODE)
 
+    engine = ChessEngine(engine_path=ENGINE_PATH, time_limit=TIME_ENGINE)
+    engine2 = ChessEngine(engine_path=ENGINE2_PATH, time_limit=TIME_ENGINE2)
+
+    if CAMERA and mode != "engine-engine":
+        # Create a frame for the heatmap
+        heatmap_frame = tk.Frame(gui.root)
+        heatmap_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+        # Create the camera
+        max_history = 1 if mode == "human-human" else 2
+        camera = Camera(max_history=max_history, parent=heatmap_frame)
+    else:
+        camera = None
+
     # Create the controller with the GUI
-    controller = ChessController(gui, robot, mode, color, engine_path=ENGINE_PATH, engine2_path=ENGINE2_PATH, time_engine=TIME_ENGINE, time_engine2=TIME_ENGINE2, camera=CAMERA, gripper_test_mode=GRIPPER_TEST_MODE)
+    controller = ChessController(gui, robot, mode, color, engine, engine2, camera=camera, gripper_test_mode=GRIPPER_TEST_MODE)
 
     # Set the controller in the GUI
     gui.set_controller(controller)
 
-    # Start the engine game if it's an engine-related mode
-    gui.root.after(100, controller.start_game_loop)
+    # Create a thread-safe queue for communication between threads
+    command_queue = queue.Queue()
 
-    # Start the main GUI
-    gui.run()
+    # Initialize and start the DetectionController
+    detection_controller = DetectionController(controller, camera=camera, command_queue=command_queue, mode=mode)
+    detection_controller.start_detection_loop()
+
+    # Start the main GUI with the command queue
+    gui.run(command_queue)
 
 def create_button(parent, text, command, font, side, padx, pady):
     button = tk.Button(parent, text=text, command=command, height=2, width=20)

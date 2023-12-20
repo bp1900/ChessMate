@@ -17,7 +17,7 @@ def resize_image(image, max_width=1280, max_height=720):
     if width > max_width or height > max_height:
         scaling_factor = min(max_width / width, max_height / height)
         return cv2.resize(image, None, fx=scaling_factor, fy=scaling_factor, interpolation=cv2.INTER_AREA)
-    return Image
+    return image
 
 
 def select_points(image, num_points=6):
@@ -74,10 +74,10 @@ def apply_perspective_transform(image, corners, chessboard_size=(7, 7), square_s
     # Rotate the image around the y-axis (horizontal flip)
     #rotated_image = cv2.flip(combined_chessboard, 1)
 
-    cv2.imshow('Warped Image', combined_chessboard)
+    cv2.imshow('Chessboard', combined_chessboard)
     return combined_chessboard
 
-def divide_into_squares(warped_image, chessboard_size=(8, 8), extended_last_col_width_cm=7, pixels_per_cm=20):
+def divide_into_squares_left(warped_image, chessboard_size=(8, 8), extended_last_col_width_cm=7, pixels_per_cm=20):
     squares = []
     square_size = int(warped_image.shape[0] / chessboard_size[0])
     extended_last_col_width_px = extended_last_col_width_cm * pixels_per_cm
@@ -92,6 +92,26 @@ def divide_into_squares(warped_image, chessboard_size=(8, 8), extended_last_col_
                 # For other columns, use the standard square size
                 square = warped_image[row*square_size:(row+1)*square_size, 
                                       col*square_size:(col+1)*square_size]
+            squares.append(square)
+
+    return squares
+
+def divide_into_squares(warped_image, chessboard_size=(8, 8), extended_first_col_width_cm=7, pixels_per_cm=20):
+    squares = []
+    square_size = int(warped_image.shape[0] / chessboard_size[0])
+    extended_first_col_width_px = extended_first_col_width_cm * pixels_per_cm
+
+    for row in range(chessboard_size[0]):
+        for col in range(chessboard_size[1]):
+            if col == 0:  # First column
+                # For the first column, use the extended width
+                square = warped_image[row*square_size:(row+1)*square_size,
+                                      col*square_size:col*square_size + extended_first_col_width_px]
+            else:
+                # Adjust the start of the next square to account for the extended first column
+                start_col = col*square_size + (extended_first_col_width_px - square_size)
+                square = warped_image[row*square_size:(row+1)*square_size,
+                                      start_col:(start_col+square_size)]
             squares.append(square)
 
     return squares

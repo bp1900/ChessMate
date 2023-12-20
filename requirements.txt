@@ -6,3 +6,8 @@ tk
 scikit-image
 pyrealsense2
 mediapipe
+openai
+openai-whisper
+sounddevice
+SpeechRecognition
+PyAudio

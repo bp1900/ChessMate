@@ -5,15 +5,20 @@ from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision as mp_vision
 from mediapipe.tasks.python.components import containers
 from skimage.metrics import structural_similarity as ssim
+import matplotlib
+matplotlib.use("TkAgg")
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 from cam_utils import *
 import chess
 import time
 import cv2
 import os
+import tkinter as tk
 
 class Camera:
-    def __init__(self, max_history=2):
+    def __init__(self, max_history=2, parent=None):
         self._setup_camera()
         self._get_corners()
         self._init_hand_detector()
@@ -22,7 +27,6 @@ class Camera:
         self.small_threshold = 5
 
         self.sample_board("previous_turn")
-        self._init_heatmap()
         #self._init_detailed_heatmap()
 
         self.frame_history = []
@@ -30,6 +34,11 @@ class Camera:
         self.wrong_moves_folder = "wrong_moves"
         self.correct_moves = 0
         self.wrong_moves = 0
+
+        # Parent Tkinter widget
+        self.parent = parent
+        self._init_heatmaps()  # Initialize heatmaps
+
 
     ##################
     # CAMERA SETUP   #
@@ -59,6 +68,83 @@ class Camera:
     # HEATMAP        #
     ##################
 
+    def _init_heatmaps(self):
+        # Create a Toplevel window for the combined heatmaps
+        self.heatmap_window = tk.Toplevel(self.parent)
+        self.heatmap_window.title("Heatmaps")
+
+        # Create a GridSpec with 4 columns and 2 rows (extra column for colorbar)
+        gs = gridspec.GridSpec(2, 4, width_ratios=[1, 1, 1, 0.05])
+        self.fig_heatmaps = plt.figure(figsize=(15, 10))
+
+        # Initialize the main heatmap and other detailed heatmaps
+        self.detailed_heatmaps = {}
+        heatmap_positions = {
+            'main': (0, 0), 'center': (0, 1), 'top': (0, 2),
+            'left': (1, 0), 'right': (1, 1), 'bottom': (1, 2)
+        }
+
+        # Create each heatmap
+        for section, pos in heatmap_positions.items():
+            ax = plt.subplot(gs[pos])
+            if section == 'main':
+                self.heatmap = ax.imshow([[0]*8 for _ in range(8)], interpolation='nearest', vmin=0, vmax=50, cmap='jet')
+                ax.set_title("Main Heatmap")
+            else:
+                # Initialize and store each detailed heatmap
+                detailed_heatmap = ax.imshow([[0]*8 for _ in range(8)], interpolation='nearest', vmin=0, vmax=50, cmap='jet')
+                self.detailed_heatmaps[section] = detailed_heatmap
+                ax.set_title(section.capitalize())
+            
+            ax.set_xticks(range(8))
+            ax.set_yticks(range(8))
+
+        # Create colorbar in the last column, spanning all rows
+        cb_ax = plt.subplot(gs[:, -1])
+        plt.colorbar(self.heatmap, cax=cb_ax)
+
+        # Adjust layout
+        plt.tight_layout()
+
+        # Embed the Matplotlib figure in the Tkinter window
+        self.canvas_heatmaps = FigureCanvasTkAgg(self.fig_heatmaps, master=self.heatmap_window)
+        self.canvas_heatmaps_widget = self.canvas_heatmaps.get_tk_widget()
+        self.canvas_heatmaps_widget.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+    def _update_heatmap(self, square_diffs, avg_diff, show_heatmap=False):
+        # Create a 2D array for the heatmap
+        heatmap_data = [[0] * 8 for _ in range(8)]
+        for idx, avg_diff in square_diffs:
+            row, col = divmod(idx, 8)
+            heatmap_data[row][col] = avg_diff
+
+        # Update the heatmap data
+        self.heatmap.set_data(heatmap_data)
+        #self.fig.canvas.draw_idle()
+
+        # Bring the plot to the foreground only if required
+        #if show_heatmap:
+        #    plt.pause(0.001)  # Update the plot and bring it to the foreground
+        #else:
+        #    self.fig.canvas.start_event_loop(0.001)  # Update without bringing to foreground
+        
+    def _update_detailed_heatmap(self, detailed_square_diffs):
+        # Update heatmap values
+        heatmap_values = {section: [[0]*8 for _ in range(8)] for section in ['center', 'left', 'right', 'top', 'bottom']}
+        for idx, _, section_diffs in detailed_square_diffs:
+            row, col = divmod(idx, 8)
+            for section, value in section_diffs.items():
+                heatmap_values[section][row][col] = value
+
+
+        self.canvas_heatmaps.draw_idle()
+
+        self.detailed_heatmap_data = {}
+        # Update each heatmap and redraw
+        for section, data in heatmap_values.items():
+            self.detailed_heatmaps[section].set_data(data)
+            self.detailed_heatmap_data[section] = data
+
     def _init_heatmap(self):
         self.fig, self.ax = plt.subplots()
         # Initialize with a fixed color scale range if known, e.g., vmin=0, vmax=1000
@@ -73,54 +159,39 @@ class Camera:
         self.ax.set_yticks(range(8))
         self.ax.set_yticklabels(['8', '7', '6', '5', '4', '3', '2', '1'])
 
-        plt.show(block=False)  # Show non-blocking plot
-
-    def _update_heatmap(self, square_diffs, avg_diff, show_heatmap=False):
-        # Create a 2D array for the heatmap
-        heatmap_data = [[0] * 8 for _ in range(8)]
-        for idx, avg_diff in square_diffs:
-            row, col = divmod(idx, 8)
-            heatmap_data[row][col] = avg_diff
-
-        # Update the heatmap data
-        self.heatmap.set_data(heatmap_data)
-        self.fig.canvas.draw_idle()
-
-        # Bring the plot to the foreground only if required
-        if show_heatmap:
-            plt.pause(0.001)  # Update the plot and bring it to the foreground
-        else:
-            self.fig.canvas.start_event_loop(0.001)  # Update without bringing to foreground
+        #plt.show(block=False)  # Show non-blocking plot
 
     def _init_detailed_heatmap(self):
-        self.fig, self.axs = plt.subplots(2, 3, figsize=(15, 10))  # Adjust the size as needed
+        # Create a Toplevel window for the detailed heatmap
+        self.detailed_heatmap_window = tk.Toplevel(self.parent)
+        self.detailed_heatmap_window.title("Detailed Heatmap")
+
+        # Create a GridSpec with 5 columns and 1 row
+        gs = gridspec.GridSpec(1, 6, width_ratios=[1, 1, 1, 1, 1, 0.05])
+        self.fig_detailed = plt.figure(figsize=(15, 10))
         self.detailed_heatmaps = {}
 
+        # Initialize heatmaps for each section
         sections = ['center', 'left', 'right', 'top', 'bottom']
-        for ax, section in zip(self.axs.flat, sections):
+        for i, section in enumerate(sections):
+            ax = plt.subplot(gs[i])
             self.detailed_heatmaps[section] = ax.imshow([[0]*8 for _ in range(8)], interpolation='nearest', vmin=0, vmax=50, cmap='jet')
             ax.set_title(section.capitalize())
             ax.set_xticks(range(8))
             ax.set_yticks(range(8))
-            plt.colorbar(self.detailed_heatmaps[section], ax=ax)
+
+        # Create a single colorbar for all subplots
+        cb_ax = plt.subplot(gs[-1])
+        plt.colorbar(self.detailed_heatmaps[sections[0]], cax=cb_ax)
 
         plt.tight_layout()
-        plt.show(block=False)
 
-    def _update_detailed_heatmap(self, detailed_square_diffs):
-        # Initialize a data structure for heatmap values
-        heatmap_values = {section: [[0]*8 for _ in range(8)] for section in ['center', 'left', 'right', 'top', 'bottom']}
+        # Embed the Matplotlib figure in the Tkinter window
+        self.canvas_detailed = FigureCanvasTkAgg(self.fig_detailed, master=self.detailed_heatmap_window)
+        self.canvas_detailed_widget = self.canvas_detailed.get_tk_widget()
+        self.canvas_detailed_widget.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
-        # Populate heatmap values
-        for idx, _, section_diffs in detailed_square_diffs:
-            row, col = divmod(idx, 8)
-            for section, value in section_diffs.items():
-                heatmap_values[section][row][col] = value
 
-        # Update each heatmap
-        for section, data in heatmap_values.items():
-            self.detailed_heatmaps[section].set_data(data)
-            self.axs.flat[section].draw_idle()
 
     ############################
     # MEDIAPIPE / DETECT HANDS #
@@ -204,7 +275,7 @@ class Camera:
     def get_relevant_squares(self, board, turn):
         """Get squares relevant to the current turn."""
         relevant_squares = set()
-        for move in board.legal_moves:
+        for move in board.legal_moves or (board.self.board.is_check() and board.self.board.pseudo_legal_moves):
             if board.color_at(move.from_square) == turn:
                 relevant_squares.add(chess_square_to_camera_perspective(move.from_square))
                 relevant_squares.add(chess_square_to_camera_perspective(move.to_square))
@@ -270,6 +341,8 @@ class Camera:
             if max(avg_diffs.values()) > self.small_threshold:
                 detailed_square_diffs.append((idx, avg_diff, avg_diffs))
 
+        self._update_detailed_heatmap(detailed_square_diffs)
+
         return detailed_square_diffs
     
     def recognize_move(self, board, turn):
@@ -282,14 +355,23 @@ class Camera:
         #self._update_detailed_heatmap(changed_squares_with_details)
 
         # Calculate scores for each square based on detailed section differences
+        #square_scores = {}
+        #for idx, _, section_diffs in changed_squares_with_details:
+        #    left_idx = idx - 1 if idx % 8 != 0 else None  # Get the left square index if it exists
+        #    left_diffs = next((details for idy, _, details in changed_squares_with_details if idy == left_idx), None) if left_idx is not None else None
+        #    score = section_diffs['center'] + section_diffs['right']
+        #    if left_diffs:
+        #        score += left_diffs['left']
+        #    square_scores[idx] = score
+
         square_scores = {}
         for idx, _, section_diffs in changed_squares_with_details:
-            left_idx = idx - 1 if idx % 8 != 0 else None  # Get the left square index if it exists
-            left_diffs = next((details for idy, _, details in changed_squares_with_details if idy == left_idx), None) if left_idx is not None else None
+            right_idx = idx + 1 if idx % 8 != 7 else None  # Get the right square index if it exists
+            right_diffs = next((details for idy, _, details in changed_squares_with_details if idy == right_idx), None) if right_idx is not None else None
 
-            score = section_diffs['center'] + section_diffs['right']
-            if left_diffs:
-                score += left_diffs['left']
+            score = section_diffs['center'] + section_diffs['left']
+            if right_diffs:
+                score += right_diffs['right']
             square_scores[idx] = score
 
         # Filter out only legal moves and calculate their scores
@@ -301,7 +383,6 @@ class Camera:
                 #to_sq = chess.SQUARES[to_sq]
                 if from_sq != to_sq:
                     move = chess.Move.from_uci(f"{index_to_algebraic(from_sq)}{index_to_algebraic(to_sq)}")
-                    print(move)
                     promotion_move = chess.Move.from_uci(f"{index_to_algebraic(from_sq)}{index_to_algebraic(to_sq)}q")
                     if move in board.legal_moves:
                         legal_moves.append((move, from_score + to_score))
@@ -320,8 +401,12 @@ class Camera:
             queenside_move = chess.Move.from_uci("e1c1" if turn == chess.WHITE else "e8c8")
 
             if all(square_scores.get(sq, 0) > 25 for sq in kingside_squares) and kingside_move in board.legal_moves:
+                self.correct_moves += 1
+                self.add_to_history(self.frame, self.previous_frames, self.heatmap.get_array(), self.detailed_heatmap_data)
                 return kingside_move
             if all(square_scores.get(sq, 0) > 25 for sq in queenside_squares) and queenside_move in board.legal_moves:
+                self.correct_moves += 1
+                self.add_to_history(self.frame, self.previous_frames, self.heatmap.get_array(), self.detailed_heatmap_data)
                 return queenside_move
 
         # Sort moves by their calculated score
@@ -329,14 +414,13 @@ class Camera:
 
         if len(refined_moves) == 0:
             return None
-        elif len(refined_moves) == 1:
-            self.correct_moves += 1
-            self.add_to_history(self.frame, self.previous_frames, self.heatmap.get_array())
-            return refined_moves[0][0]
         
         self.correct_moves += 1
-        self.add_to_history(self.frame, self.previous_frames, self.heatmap.get_array())
+        self.add_to_history(self.frame, self.previous_frames, self.heatmap.get_array(), self.detailed_heatmap_data)
 
+        if len(refined_moves) == 1:
+            return refined_moves[0][0]
+        
         # If refined move difference between first and second is higher than 30, return the first move
         if len(refined_moves) > 1 and refined_moves[0][1] - refined_moves[1][1] > 30:
             return refined_moves[0][0]
@@ -361,24 +445,26 @@ class Camera:
         self.small_threshold = value
 
     def print_stats(self):
+        print("-"*20)
         print(f"Correct moves: {self.correct_moves}")
         print(f"Wrong moves: {self.wrong_moves}")
+        print()
 
     ##############
     # STATISTICS #
     ##############
     
-    def add_to_history(self, frame, previous_turn_samples, heatmap_data):
+    def add_to_history(self, frame, previous_turn_samples, heatmap_data, detailed_heatmaps):
         if len(self.frame_history) >= self.max_history:
             self.frame_history.pop(0)
-        self.frame_history.append((frame, previous_turn_samples, heatmap_data))
+        self.frame_history.append((frame, previous_turn_samples, heatmap_data, detailed_heatmaps))
 
     def archive_wrong_move(self, num_moves_to_pop):
         while num_moves_to_pop > 0 and self.frame_history:
             num_moves_to_pop -= 1
 
             # Pop the oldest record in the history
-            current_frame, previous_turn_samples, heatmap_data = self.frame_history.pop(0)
+            current_frame, previous_turn_samples, main_heatmap_data, detailed_heatmap_data = self.frame_history.pop(0)
 
             # Create a folder for this wrong move
             wrong_move_folder = os.path.join(self.wrong_moves_folder, f"wrong_move_{time.strftime('%Y%m%d-%H%M%S')}")
@@ -391,20 +477,47 @@ class Camera:
             for i, prev_frame in enumerate(previous_turn_samples):
                 cv2.imwrite(os.path.join(wrong_move_folder, f"prev_turn_sample_{i}.jpg"), prev_frame)
 
-            # Save the heatmap data
-            self.save_heatmap(os.path.join(wrong_move_folder, "heatmap.png"), heatmap_data)
+            # Save the combined heatmap
+            self.save_combined_heatmap(os.path.join(wrong_move_folder, "combined_heatmap.png"), main_heatmap_data, detailed_heatmap_data)
 
-        # We did one wrong move, which we counted as a correct move.
-        self.wrong_moves += 1
-        self.correct_moves -= 1
+            # Update wrong moves count
+            self.wrong_moves += 1
+            self.correct_moves -= 1
 
-    def save_heatmap(self, filename, heatmap_data):
-        fig, ax = plt.subplots()
-        heatmap = ax.imshow(heatmap_data, interpolation='nearest', vmin=0, vmax=50, cmap='jet')
-        plt.colorbar(heatmap)
-        ax.set_xticks(range(8))
-        ax.set_xticklabels(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'])
-        ax.set_yticks(range(8))
-        ax.set_yticklabels(['8', '7', '6', '5', '4', '3', '2', '1'])
+    def save_combined_heatmap(self, filename, main_heatmap_data, detailed_heatmap_data):
+        # Create a figure with GridSpec layout
+        fig = plt.figure(figsize=(15, 10))
+        gs = gridspec.GridSpec(2, 4, width_ratios=[1, 1, 1, 0.05])
+
+        # Create main heatmap subplot
+        ax_main = plt.subplot(gs[0, 0])
+        ax_main.imshow(main_heatmap_data, interpolation='nearest', vmin=0, vmax=50, cmap='jet')
+        ax_main.set_title("Main Heatmap")
+        ax_main.set_xticks(range(8))
+        ax_main.set_yticks(range(8))
+
+        # Create detailed heatmaps based on positions used in _init_heatmaps
+        detailed_heatmap_positions = {
+            'center': (0, 1), 'top': (0, 2), 
+            'left': (1, 0), 'right': (1, 1), 'bottom': (1, 2)
+        }
+
+        for section, pos in detailed_heatmap_positions.items():
+            ax = plt.subplot(gs[pos])
+            ax.imshow(detailed_heatmap_data[section], interpolation='nearest', vmin=0, vmax=50, cmap='jet')
+            ax.set_title(section.capitalize())
+            ax.set_xticks(range(8))
+            ax.set_yticks(range(8))
+
+        # Add colorbar
+        cb_ax = plt.subplot(gs[:, -1])
+        plt.colorbar(ax_main.get_images()[0], cax=cb_ax)
+
+        # Save the figure
+        plt.tight_layout()
         plt.savefig(filename)
-        plt.close()
+        plt.close(fig)
+
+
+
+

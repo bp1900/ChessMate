@@ -1,11 +1,11 @@
 import chess
 import chess.svg
 import tkinter as tk
-from PIL import Image, ImageTk
-import tkinter.simpledialog
 from tkinter import PhotoImage
 import tkinter.messagebox as messagebox
 import cairosvg
+import queue
+import time
 
 class ChessGUI:
     BOARD_SIZE = 600
@@ -36,16 +36,18 @@ class ChessGUI:
         self.wrong_move_button = tk.Button(self.button_frame, text="Wrong Move", command=self.handle_wrong_move, font=("Verdana", 20), height=2, width=20)
         self.wrong_move_button.grid(row=0, column=0, columnspan=2, pady=10)  # Span two columns
 
-        # Add a forfeit button
-        #self.forfeit_button = tk.Button(self.button_frame, text="Forfeit", command=self.handle_forfeit, font=("Verdana", 20), height=2, width=20)
-        #self.forfeit_button.grid(row=1, column=0, pady=10)  # Place in the left column of the second row
-
         # Add a reset button
         self.reset_button = tk.Button(self.button_frame, text="Reset", command=self.reset_game, font=("Verdana", 20), height=2, width=20)
         self.reset_button.grid(row=1, column=1, pady=10)  # Place in the right column of the second row
 
+
     def set_controller(self, controller):
         self.controller = controller
+
+        # If game mode human-human disable the wrong move button
+        if self.controller.game_mode == "engine-engine":
+            self.wrong_move_button.config(state="disabled")
+
 
     def handle_wrong_move(self):
         # Show a confirmation dialog
@@ -135,6 +137,12 @@ class ChessGUI:
         # Generate the SVG with filled squares
         svg = chess.svg.board(board=self.board, size=self.BOARD_SIZE, fill=fill_squares, arrows=arrows)
         photo = self.svg_to_photo(svg)
+        if hasattr(self, 'board_image'):
+            # Update the existing image
+            self.canvas.itemconfig(self.board_image, image=photo)
+        else:
+            # Create the image for the first time
+            self.board_image = self.canvas.create_image(0, 0, anchor=tk.NW, image=photo)
         self.canvas.create_image(0, 0, anchor=tk.NW, image=photo)
         self.canvas.image = photo
         self.turn_label.config(text=self.current_turn_text())
@@ -211,6 +219,8 @@ class ChessGUI:
         else:
             self.turn_label.config(text=self.current_turn_text())
 
+        time.sleep(0.05)
+
     def on_release(self, event):
         self.canvas.delete("dragged_piece")
         dest_square = self.get_square_from_coords(event.x, event.y)
@@ -218,11 +228,11 @@ class ChessGUI:
 
         # Create the move object
         move = chess.Move(self.source_square, dest_index)
-
-        self.controller.handle_move(move)
         
         self.selected_piece = None
         self.highlight_square = None
+
+        self.controller.handle_move(move)
 
         if self.in_correction_mode:
             self.in_correction_mode = False
@@ -245,8 +255,31 @@ class ChessGUI:
         self.turn_label.config(text=self.current_turn_text())
         self.wrong_move_button.config(state="disabled")  # Disable the 'Wrong Move' button on reset
 
-    def run(self):
+        self.controller.start_game_loop()
+
+    def run(self, command_queue):
+        # Schedule the first check of the command queue
+        self.root.after(100, self.check_command_queue, command_queue)
         self.root.mainloop()
+
+    def check_command_queue(self, command_queue):
+        try:
+            while True:
+                # Non-blocking check of the command queue
+                command = command_queue.get_nowait()
+                # Process the command (a move)
+                self.process_command(command)
+        except queue.Empty:
+            # No more commands in the queue
+            pass
+        finally:
+            # Schedule the next check of the command queue
+            self.root.after(100, self.check_command_queue, command_queue)
+
+    def process_command(self, command):
+        # Process the command here (handle a move)
+        if isinstance(command, chess.Move):
+            self.controller.handle_move(command)
 
     def handle_pawn_promotion(self, move):
         # Popup dialog for pawn promotion

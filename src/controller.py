@@ -1,57 +1,32 @@
 
-
 import chess
-import chess.engine
-import random
-#import whisper
-import os
 import time
+import threading
 from camera import Camera
-
-################
-# CHESS ENGINE #
-################
-
-class ChessEngine:
-    def __init__(self, engine_path, time_limit=0.5):
-        self.engine_path = engine_path
-        self.time_limit = time_limit
-
-    def compute_move(self, board):
-        with chess.engine.SimpleEngine.popen_uci(self.engine_path) as engine:
-            result = engine.play(board, chess.engine.Limit(time=self.time_limit))
-            return result.move
-        
-    def set_time_limit(self, time_limit):
-        self.time_limit = time_limit
+import tkinter as tk
 
 #################
 # CHESS CONTROL #
 #################
 
-class ChessController:
-    def __init__(self, gui, robot, mode, color, engine_path, time_engine, engine2_path, time_engine2, camera, gripper_test_mode):
+class ChessController(threading.Thread):
+    def __init__(self, gui, robot, mode, color, engine, engine2, camera, gripper_test_mode):
         self.board = chess.Board()
         self.gui = gui
         self.robot = robot
-        self.engine = ChessEngine(engine_path=engine_path, time_limit=time_engine)
-        self.engine2 = ChessEngine(engine_path=engine2_path, time_limit=time_engine2)
+        self.engine = engine
+        self.engine2 = engine2
 
         self.GRIPPER_TEST_MODE = gripper_test_mode
-        if camera:
-            max_history = 1 if mode == "human-human" else 2
-            self.camera = Camera(max_history=max_history)
-        else:
-            self.camera = None
-        self.check_camera_interval = 1000
-
-        self.turn = chess.WHITE
 
         self.game_mode = mode
         self.player_color = color
 
         self.robot_movement = False
         self.in_correction_mode = False
+
+        self.check_camera_interval = 1000
+        self.camera = camera
 
     ##################
     # MOVE HANDLER   #
@@ -79,13 +54,16 @@ class ChessController:
             self.board.push(move)
             self.gui.update_display(self.board.fen(), last_move=move)
 
+
+            if self.game_mode == "human-engine" and self.player_color != self.board.turn:
+                self.gui.root.after(100, self.async_engine_move)
+
             if self.robot_movement:
                 
                 if captured_piece is not None and captured_piece.piece_type == chess.KING:
                     self.send_move_robot(move, is_checkmate=True)     
 
                 else:
-                
                     if captured_piece:
                         self.send_capture_robot(move, captured_piece)
                     
@@ -94,11 +72,9 @@ class ChessController:
                     else:
                         self.send_move_robot(move)
                     
+                    # After making the human move, check if it's the engine's turn
                     if self.game_mode == "engine-engine":
-                        self.gui.root.after(100, self.get_engine_move)
-
-            elif self.game_mode == "human-engine": 
-                self.get_engine_move()
+                        self.gui.root.after(100, self.async_engine_move)
 
             if self.board.is_checkmate():
 
@@ -114,22 +90,70 @@ class ChessController:
 
                 self.send_move_robot(move_kill, is_checkmate=True)
             
-            self.turn = not self.turn
-
             if self.camera and not self.in_correction_mode:
-                if self.game_mode == "human-engine" or self.game_mode == "human-human":
+                if self.game_mode == "human-human":
                     self.camera.sample_board('previous_turn')
+                elif self.game_mode == "human-engine" and self.player_color != self.board.turn:
+                    self.camera.sample_board('previous_turn')
+
+                # Get stats
+                self.camera.print_stats()
 
         else:
             print("Illegal move!")
 
+    def get_engine_move(self):
+        if self.board.is_game_over():
+            return
+
+        self.robot_movement = True
+        if self.game_mode == "human-engine" and self.player_color != self.board.turn:
+            engine_move = self.engine.compute_move(self.board)
+        elif self.board.turn == chess.WHITE:
+            engine_move = self.engine.compute_move(self.board)
+        else:
+            engine_move = self.engine2.compute_move(self.board)
+
+        self.handle_move(engine_move)
+
+    def async_engine_move(self):
+        if self.board.is_game_over():
+            return
+
+        self.robot_movement = True
+        def compute_and_handle_move():
+            if self.game_mode == "human-engine" and self.player_color == self.board.turn:
+                print("Engine's turn 2")
+                engine_move = self.engine.compute_move(self.board)
+            elif self.board.turn == chess.WHITE:
+                engine_move = self.engine.compute_move(self.board)
+            else:
+                engine_move = self.engine2.compute_move(self.board)
+
+            self.gui.root.after(0, lambda: self.handle_move(engine_move))
+
+        threading.Thread(target=compute_and_handle_move).start()
+
+    def start_game_loop(self):
+        """Start the game loop."""
+        if self.game_mode == "engine-engine":
+            self.async_engine_move()
+        elif self.game_mode == "human-engine" and self.player_color == chess.BLACK:
+            self.async_engine_move()
+        
     ##########################
     # GAME UTILITY FUNCTIONS #
     ##########################
 
     def is_move_legal(self, move):
-        """Check if a move is legal."""
-        return move in self.board.legal_moves
+        """Check if a move is legal. Allow moves even in check."""
+        if self.board.is_check():
+            # If the king is in check, allow all moves that are pseudo-legal
+            # Pseudo-legal moves include moves that don't necessarily get the king out of check
+            return move in self.board.pseudo_legal_moves
+        else:
+            # If the king is not in check, use standard legal move check
+            return move in self.board.legal_moves
     
     def is_pawn_promotion_candidate(self, move):
         piece = self.board.piece_at(move.from_square)
@@ -137,52 +161,6 @@ class ChessController:
             ((piece.color == chess.WHITE and move.from_square in chess.SquareSet(chess.BB_RANK_7) and move.to_square in chess.SquareSet(chess.BB_RANK_8)) or \
             (piece.color == chess.BLACK and move.from_square in chess.SquareSet(chess.BB_RANK_2) and move.to_square in chess.SquareSet(chess.BB_RANK_1)))
     
-    ##################
-    # GAME LOOP CTRL #
-    ##################
-
-    def start_game_loop(self):
-        if self.camera:
-            self.check_for_camera_move()
-
-        if self.game_mode == "human-engine" and self.player_color == chess.BLACK:
-            self.get_engine_move()
-        elif self.game_mode == "engine-engine":
-            self.get_engine_move()
-    
-    def get_engine_move(self):
-        if self.game_mode == "human-engine" and self.player_color != self.board.turn:
-            self.robot_movement = True
-            engine_move = self.engine.compute_move(self.board)
-            self.handle_move(engine_move)
-        elif self.game_mode == "engine-engine":
-            self.robot_movement = True
-            if self.turn:
-                engine_move = self.engine.compute_move(self.board)
-            else:
-                engine_move = self.engine2.compute_move(self.board)
-
-            self.handle_move(engine_move)
-    
-    ##################
-    # CAMERA CONTROL #
-    ##################
-
-    def check_for_camera_move(self):
-        """Check for a move made via the camera."""
-        if self.in_correction_mode:
-            return
-        print('Checking for camera move')
-        camera_move = self.camera.recognize_move(self.board, self.turn)
-        if camera_move:
-            # Check if camera move returned one or multiple moves
-            if isinstance(camera_move, list):
-                # Display possible moves in GUI for user selection
-                self.gui.display_possible_moves(camera_move)
-            else:
-                self.handle_move(camera_move)
-        self.gui.root.after(self.check_camera_interval, self.check_for_camera_move)
-
     ########################
     # RESETTING / MISTAKES #
     ########################
@@ -190,11 +168,10 @@ class ChessController:
     def reset_board(self):
         self.board.reset()
         self.gui.update_display(self.board.fen())
-        self.turn = chess.WHITE
 
         if self.game_mode == "human-engine" and self.player_color == chess.BLACK:
             self.robot_movement = True
-            self.get_engine_move()
+            self.async_engine_move()
         else:
             self.robot_movement = False
 
@@ -207,7 +184,7 @@ class ChessController:
 
         # If it's the robot's (engine's) turn, pop only the last move
         # If it's the human's turn again, pop two moves (human's and engine's)
-        num_moves_to_pop = 2 if self.game_mode == "human-engine" else 1
+        num_moves_to_pop = 1 if current_turn != self.player_color else 2
 
         for _ in range(num_moves_to_pop):
             self.board.pop()
@@ -218,18 +195,15 @@ class ChessController:
 
     def exit_correction_mode(self):
         self.in_correction_mode = False
-        self.turn = self.board.turn
 
         if self.camera:
             # Sample the board for the previous turn, effectively resetting the detection state
             self.camera.sample_board('previous_turn')
-            # Continue checking for camera moves after a delay
-            self.gui.root.after(self.check_camera_interval, self.check_for_camera_move)
 
         if self.game_mode == "human-engine" and not self.board.turn != self.player_color:
             # If it's the robot's turn after exiting correction mode, get the engine's move
             self.robot_movement = True
-            self.get_engine_move()
+            self.async_engine_move()
 
     ############
     # CASTLING #
@@ -273,3 +247,64 @@ class ChessController:
 
         if not self.GRIPPER_TEST_MODE:
             self.robot.capture_piece(move, is_checkmate)
+
+        """Check for a move made via the camera."""
+        if self.in_correction_mode:
+            return
+        if self.game_mode == "human-engine" and self.player_color != self.board.turn:
+            self.async_engine_move()
+            self.gui.root.after(self.check_camera_interval, self.check_for_camera_move)
+            return
+
+        print('Checking for camera move')
+        camera_move = self.camera.recognize_move(self.board, self.board.turn)
+        if camera_move:
+            # Check if camera move returned one or multiple moves
+            if isinstance(camera_move, list):
+                # Display possible moves in GUI for user selection
+                self.gui.display_possible_moves(camera_move)
+            else:
+                self.handle_move(camera_move)
+        self.gui.root.after(self.check_camera_interval, self.check_for_camera_move)
+
+class DetectionController(threading.Thread):
+    def __init__(self, chess_controller, camera, command_queue, mode):
+        threading.Thread.__init__(self)
+        self.chess_controller = chess_controller
+        self.player_color = chess_controller.player_color
+        self.command_queue = command_queue
+        self.mode = mode
+        self.camera = camera
+
+    def run(self):
+        if self.mode == "engine-engine":
+            time.sleep(0.2)
+            self.chess_controller.start_game_loop()
+            return  # Do not run detection for engine-engine mode
+        elif self.mode == "human-engine" and self.chess_controller.player_color == chess.BLACK:
+            time.sleep(0.2)
+            self.chess_controller.start_game_loop()
+            return
+
+        while True:
+            # Check for camera move or other inputs
+            if self.should_detect():
+                if self.camera:
+                    move = self.camera.recognize_move(self.chess_controller.board, self.chess_controller.board.turn)
+                    if move:
+                        # Put the move in the queue instead of directly handling it
+                        self.command_queue.put(move)
+            time.sleep(1)
+
+    def should_detect(self):
+        # Detect only on the human player's turn
+        if self.mode == "human-human":
+            return True
+        elif self.mode == "human-engine":
+            return self.chess_controller.board.turn == self.player_color
+        return False
+
+    def start_detection_loop(self):
+        # Start the detection loop in a separate thread
+        detection_loop_thread = threading.Thread(target=self.run)
+        detection_loop_thread.start()
