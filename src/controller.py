@@ -192,7 +192,11 @@ class ChessController(threading.Thread):
 
         self.gui.update_display(self.board.fen())
         self.in_correction_mode = True
-        self.camera.archive_wrong_move(num_moves_to_pop)
+
+        if self.camera is not None:
+            self.camera.archive_wrong_move(num_moves_to_pop)
+
+        self.camera.sample_board('previous_turn')
 
     def exit_correction_mode(self):
         self.in_correction_mode = False

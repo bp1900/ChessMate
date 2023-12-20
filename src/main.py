@@ -8,17 +8,17 @@ from camera import Camera
 import queue
 
 # SETUP
-GRIPPER_TEST_MODE = True
+GRIPPER_TEST_MODE = False
 ENGINE_PATH = r'third_party\stockfish\stockfish-windows-x86-64-avx2.exe'
 TIME_ENGINE = 2
 ENGINE2_PATH = r'third_party\lc0\lc0.exe'
 TIME_ENGINE2 = 0.01
 CAMERA = True
 
-HOST = '10.10.73.237'
+HOST = '10.10.73.239'
 PORT = 30002
 
-LARGE_THRS = 15
+LARGE_THRS = 12
 SMALL_THRS = 10
 
 def launch_game_mode(mode_selection_window, mode, color=None):

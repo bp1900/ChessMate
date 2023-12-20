@@ -51,7 +51,7 @@ class ChessGUI:
 
     def handle_wrong_move(self):
         # Show a confirmation dialog
-        if messagebox.askyesno("Confirm Action", "Are you sure you want to revert the last move? If yes, please modify the board on the Interface."):
+        if messagebox.askyesno("Confirm Action", "Are you sure you want to revert the last move? If yes, please modify the engine move and then correct your LAST movement on the Interface"):
             # Allow the user to correct a wrong move
             self.controller.handle_wrong_move()
             self.in_correction_mode = True

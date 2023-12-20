@@ -119,7 +119,8 @@ def divide_into_squares(warped_image, chessboard_size=(8, 8), extended_first_col
 # Function to find corners of markers
 def detect_markers(image):
     # Let user manually select points on the markers
-    selected_points = [(1083, 596), (1096, 932), (700, 595), (645, 930), (1082, 525), (700, 526)]
+    selected_points = [(1084, 597), (1096, 937), (702, 598), (646, 933), (1086, 546), (709, 549)] 
+    # vermell (casella anterior), magenta (casella anterior), groc, blau, adalt vermell, adalt groc
     #selected_points = select_points(image.copy())
 
     # Convert image to float and apply SLIC

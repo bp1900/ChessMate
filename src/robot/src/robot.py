@@ -3,8 +3,8 @@ from robot.src.MovementManager import MovementManager, decode_movement, orientat
 from robot.src.gripper import GripperManager
 
 class Robot:
-    def __init__(self, gripper_test_mode=False):
-        self.gm = GripperManager(test_mode=gripper_test_mode)
+    def __init__(self, host, port, gripper_test_mode=False):
+        self.gm = GripperManager(host=host, port=port, test_mode=gripper_test_mode)
         self.bp = BoardPositions(x0=0.43646, y0=-0.2545, x7=0.15070, y7=0.02702)
         self.posManager = MovementManager()
         self.gm.send_command(f"set_tcp(p[0.0,0.0,0.2286,0.0,0.0,0.0])\n")

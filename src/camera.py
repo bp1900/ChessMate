@@ -280,7 +280,7 @@ class Camera:
     def get_relevant_squares(self, board, turn):
         """Get squares relevant to the current turn."""
         relevant_squares = set()
-        for move in board.legal_moves or (board.self.board.is_check() and board.self.board.pseudo_legal_moves):
+        for move in board.pseudo_legal_moves:
             if board.color_at(move.from_square) == turn:
                 relevant_squares.add(chess_square_to_camera_perspective(move.from_square))
                 relevant_squares.add(chess_square_to_camera_perspective(move.to_square))

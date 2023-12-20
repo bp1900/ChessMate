@@ -34,14 +34,14 @@ class GripperManager:
     def open_gripper(self):
         if not self.test_mode:
             self.reconnect()
-            send_info(1, HOST, PORT)
+            send_info(1, self.host, self.port)
             print("Gripper opened (test mode)") if self.test_mode else None
             time.sleep(self.sleep_time)
 
     def close_gripper(self):
         if not self.test_mode:
             self.reconnect()
-            send_info(0, HOST, PORT)
+            send_info(0, self.host, self.port)
             print("Gripper closed (test mode)") if self.test_mode else None
             time.sleep(self.sleep_time)
 
