@@ -15,6 +15,12 @@ ENGINE2_PATH = r'third_party\lc0\lc0.exe'
 TIME_ENGINE2 = 0.01
 CAMERA = True
 
+HOST = '10.10.73.237'
+PORT = 30002
+
+LARGE_THRS = 15
+SMALL_THRS = 10
+
 def launch_game_mode(mode_selection_window, mode, color=None):
     # Close the mode selection window
     mode_selection_window.destroy()
@@ -23,7 +29,7 @@ def launch_game_mode(mode_selection_window, mode, color=None):
     gui = ChessGUI()
 
     # Create the Robot controller
-    robot = Robot(gripper_test_mode=GRIPPER_TEST_MODE)
+    robot = Robot(host=HOST, port=PORT, gripper_test_mode=GRIPPER_TEST_MODE)
 
     engine = ChessEngine(engine_path=ENGINE_PATH, time_limit=TIME_ENGINE)
     engine2 = ChessEngine(engine_path=ENGINE2_PATH, time_limit=TIME_ENGINE2)
@@ -35,7 +41,7 @@ def launch_game_mode(mode_selection_window, mode, color=None):
 
         # Create the camera
         max_history = 1 if mode == "human-human" else 2
-        camera = Camera(max_history=max_history, parent=heatmap_frame)
+        camera = Camera(large_threshold=LARGE_THRS, small_threshold=SMALL_THRS, max_history=max_history, parent=heatmap_frame)
     else:
         camera = None
 

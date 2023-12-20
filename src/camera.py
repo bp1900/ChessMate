@@ -18,13 +18,13 @@ import os
 import tkinter as tk
 
 class Camera:
-    def __init__(self, max_history=2, parent=None):
+    def __init__(self, large_threshold=20, small_threshold=10, max_history=2, parent=None):
         self._setup_camera()
         self._get_corners()
         self._init_hand_detector()
 
-        self.large_threshold = 10
-        self.small_threshold = 5
+        self.large_threshold = large_threshold
+        self.small_threshold = small_threshold
 
         self.sample_board("previous_turn")
         #self._init_detailed_heatmap()
@@ -202,8 +202,13 @@ class Camera:
         options = mp_vision.HandLandmarkerOptions(base_options=base_options, num_hands=1)
         self.hand_detector = mp_vision.HandLandmarker.create_from_options(options)
 
-    def detect_hands(self, color_frame):
+    def detect_hands(self, color_frame, crop_left = 500, crop_right=600, crop_bottom=0, crop_top=300):
         color_image = np.asanyarray(color_frame.get_data())
+
+        height, width = color_image.shape[:2]
+
+        color_image = color_image[crop_top:(height - crop_bottom), crop_left:(width - crop_right)]
+
         cv2.imwrite(f'detect_hand.png', color_image)
 
         #mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=color_image)

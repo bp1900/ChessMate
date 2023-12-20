@@ -249,25 +249,6 @@ class ChessController(threading.Thread):
         if not self.GRIPPER_TEST_MODE:
             self.robot.capture_piece(move, is_checkmate, is_pawn=is_pawn)
 
-        """Check for a move made via the camera."""
-        if self.in_correction_mode:
-            return
-        if self.game_mode == "human-engine" and self.player_color != self.board.turn:
-            self.async_engine_move()
-            self.gui.root.after(self.check_camera_interval, self.check_for_camera_move)
-            return
-
-        print('Checking for camera move')
-        camera_move = self.camera.recognize_move(self.board, self.board.turn)
-        if camera_move:
-            # Check if camera move returned one or multiple moves
-            if isinstance(camera_move, list):
-                # Display possible moves in GUI for user selection
-                self.gui.display_possible_moves(camera_move)
-            else:
-                self.handle_move(camera_move)
-        self.gui.root.after(self.check_camera_interval, self.check_for_camera_move)
-
 class DetectionController(threading.Thread):
     def __init__(self, chess_controller, camera, command_queue, mode):
         threading.Thread.__init__(self)
