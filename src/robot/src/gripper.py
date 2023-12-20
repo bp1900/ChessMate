@@ -9,9 +9,11 @@ class GripperManager:
         self.sleep_time = sleep_time
         self.test_mode = test_mode
 
-        self.fixed_z_up = 0.105926875934
+        self.fixed_z_up = 0.12 # 0.105926875934
         self.fixed_z_down_take  = .0353469060551
         self.fixed_z_down_leave = .037
+        self.fixed_z_down_take_pawn  = .032
+        self.fixed_z_down_leave_pawn  = .0332
         self.fixed_z_kill = .06
 
         if not self.test_mode:
@@ -49,7 +51,7 @@ class GripperManager:
         else:
             print(f"Command sent (test mode): {command}")
 
-    def move_robot(self, position, orientation, fixed_z_height, q_vals=None, wait_time=3, velocity=0.2, checkmate=False):
+    def move_robot(self, position, orientation, fixed_z_height, q_vals=None, wait_time=2.5, velocity=0.2, checkmate=False):
         if q_vals is None:
             q_vals = ""
         else:
@@ -59,8 +61,12 @@ class GripperManager:
             fixed_z_height = self.fixed_z_up
         elif fixed_z_height == 'down_take':
             fixed_z_height = self.fixed_z_down_take
-        else:
+        elif fixed_z_height == 'down_leave':
             fixed_z_height = self.fixed_z_down_leave
+        elif fixed_z_height == 'down_take_pawn':
+            fixed_z_height = self.fixed_z_down_take_pawn
+        elif fixed_z_height == 'down_leave_pawn':
+            fixed_z_height = self.fixed_z_down_leave_pawn
 
         if checkmate:
             fixed_z_height = self.fixed_z_kill
@@ -69,7 +75,7 @@ class GripperManager:
         # command = f"movej(get_inverse_kin(p[{position[0]}, {position[1]}, {fixed_z_height}, {orientation[0]}, {orientation[1]}, {orientation[2]}], {q_vals} maxPositionError=1e-1, maxOrientationError=1e-3), a=0.1, v={velocity})\n"
         self.send_command(command)
         # time.sleep(self.sleep_time)
-        time.sleep(wait_time)
+        time.sleep(wait_time+0.2)
 
 '''
 class GripperManager:

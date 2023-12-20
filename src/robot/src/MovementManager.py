@@ -3,7 +3,7 @@ import numpy as np
 
 class MovementManager:
     def __init__(self):
-        qs = np.zeros((4,4,6))
+        qs = np.zeros((5, 4, 6))
         qs[3,0] = [-0.46321038, -1.1664035, -1.89926729, -1.5566592, -4.78307482, 0.22392574] # Degrees transformed to radians
         # qs[3,1] = [-0.1527163, -0.93811447, -2.17363305, -1.4170328, -4.68114759, 6.1540309]
         qs[3,1] = [-0.1527163, -0.93811447, -2.17363305, -1.4170328, -4.68114759, 0.52656584]
@@ -31,9 +31,22 @@ class MovementManager:
         qs[0,2] = [0.19757127, -1.5222762, -1.93661734, -0.89430671, -4.76492339, 0.1286308]
         qs[0,3] = [0.48205994, -1.471138, -1.97222, -0.93741634, -4.8614401, 0.397586]
 
-        self.qs = qs
+        # SPECIAL: TORRES
+        """
+        3_0 = [-17.71, -101.70, -85.72, -101.36, -278.15, 150.25]
+        3_1 = [-1.79, -89.63, -98.61, -101.97, -272.82, 165.36]
+        3_2 = [15.09, -82.56, -105.15, -102.44, -266.95, 181.22]
+        3_3 = [37.34, -78.27, -109.59, -99.73, -25967, 202.42]
+        """
+        qs[4,0] = [-0.3090978105, -1.7749998493, -1.496096234, -1.7690657298, -4.8546333144, 2.6223572011]
+        qs[4,1] = [-0.0312413936, -1.5643386086, -1.7210691754, -1.7797122383, -4.7616072653, 2.8860764511]
+        qs[4,2] = [0.2633701841, -1.4409438304, -1.8352137085, -1.7879152857, -4.6591564382, 3.1628856705]
+        qs[4,3] = [0.6517059427, -1.3660692055, -1.9127063273, -1.740616863, -4.5320964687, 3.5328954719]
 
-        orients = np.zeros((4,4, 3)) # RX, RY, RZ
+        self.qs = qs
+        # self.qs_all_column = qs_all_column
+
+        orients = np.zeros((5, 4, 3)) # RX, RY, RZ
         # orients[3,0] = [2.323, -2.313, 0.390]
         orients[3,0] = [2.202, -2.246, 0.033]
         orients[3,1] = [2.287, -2.334, 0.209]
@@ -53,10 +66,25 @@ class MovementManager:
 
         # orients[0,0] = [2.449, -2.308, 0.445]
         orients[0,0] = [2.337, -2.248, 0.171]
-        orients[0,1] = [2.449, -2.308, 0.445]
-        orients[0,2] = [2.449, -2.308, 0.445]
+        # orients[0,1] = [2.449, -2.308, 0.445]
+        # orients[0,2] = [2.449, -2.308, 0.445]
+
+        orients[0,1] = [2.337, -2.248, 0.171]
+        orients[0,2] = [2.337, -2.248, 0.171]
+
         # orients[0,3] = [2.449, -2.308, 0.445]
         orients[0,3] = [2.337, -2.248, 0.171]
+
+
+        # SPECIAL: TORRES
+        """
+        orients_torres = [2.096, 2.639, -0.423]
+        """
+        # orients_all_column = [2.096, 2.639, -0.423]
+        orients[4,0] = [2.096, 2.639, -0.423]
+        orients[4,1] = [2.096, 2.639, -0.423]
+        orients[4,2] = [2.096, 2.639, -0.423]
+        orients[4,3] = [2.096, 2.639, -0.423]
 
         self.orients = orients
 
@@ -68,6 +96,11 @@ class MovementManager:
 
         quadrant_init = [row_init // 2, col_init // 2]
         quadrant_final = [row_final // 2, col_final // 2]
+
+        if (quadrant_init[0] == 0 and quadrant_final[0] == 3):
+            quadrant_final[0] = 4       # quadrant_init[0]
+        elif (quadrant_init[0] == 3 and quadrant_final[0] == 0):
+            quadrant_init[0] = 4        # quadrant_final[0]
 
         print(quadrant_init)
         print(quadrant_final)
@@ -99,6 +132,13 @@ class MovementManager:
         elif (quadrant_init[0] > 0 and quadrant_init[0] < 3) and (quadrant_final[0] == 0 or quadrant_final[0] == 3):
             quadrant_init[0] = quadrant_final[0]
             quadrant_init[1] = quadrant_final[1]
+
+        # Change in "qs_orient_position"
+        # elif (quadrant_init[0] == 0 and quadrant_final[0] == 3):
+        #     quadrant_final[0] = 4       # quadrant_init[0]
+        
+        # elif (quadrant_init[0] == 3 and quadrant_final[0] == 0):
+        #     quadrant_init[0] = 4        # quadrant_final[0]
 
         orient_init = self.orients[quadrant_init[0], quadrant_init[1]]
         orient_final = self.orients[quadrant_final[0], quadrant_final[1]]

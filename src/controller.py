@@ -37,6 +37,7 @@ class ChessController(threading.Thread):
 
         # Obtain the current piece
         current_piece = self.board.piece_at(move.from_square)
+        current_is_pawn = (current_piece.piece_type == chess.PAWN)
 
         # If the robot/engine is not moving, and its possible to promote a pawn, ask the user for the promotion piece
         if not self.robot_movement and self.is_pawn_promotion_candidate(move):
@@ -53,24 +54,24 @@ class ChessController(threading.Thread):
             # Make the move and update the GUI
             self.board.push(move)
             self.gui.update_display(self.board.fen(), last_move=move)
-
-
+            
             if self.game_mode == "human-engine" and self.player_color != self.board.turn:
                 self.gui.root.after(100, self.async_engine_move)
 
             if self.robot_movement:
                 
                 if captured_piece is not None and captured_piece.piece_type == chess.KING:
-                    self.send_move_robot(move, is_checkmate=True)     
+                    self.send_move_robot(move, is_checkmate=True, is_pawn=current_is_pawn)
 
                 else:
                     if captured_piece:
-                        self.send_capture_robot(move, captured_piece)
+                        captured_is_pawn = (captured_piece.piece_type == chess.PAWN)
+                        self.send_capture_robot(move, captured_piece, is_pawn=captured_is_pawn)
                     
                     if is_castling_move:
                         self.handle_castling_robot(move)
                     else:
-                        self.send_move_robot(move)
+                        self.send_move_robot(move, is_pawn=current_is_pawn)
                     
                     # After making the human move, check if it's the engine's turn
                     if self.game_mode == "engine-engine":
@@ -88,7 +89,7 @@ class ChessController(threading.Thread):
 
                 move_kill = chess.Move(move.to_square, chess.parse_square(king_square_name))
 
-                self.send_move_robot(move_kill, is_checkmate=True)
+                self.send_move_robot(move_kill, is_checkmate=True, is_pawn=current_is_pawn)
             
             if self.camera and not self.in_correction_mode:
                 if self.game_mode == "human-human":
@@ -230,23 +231,23 @@ class ChessController(threading.Thread):
     # Robotic arm communication #
     #############################
 
-    def send_move_robot(self, move, is_checkmate=False):
+    def send_move_robot(self, move, return_initial_position=True, is_checkmate=False, is_pawn=False):
         """Send the move to the robotic arm."""
 
         print(f'[ROBOT - PIECE MOVEMENT]: {move}')
         if not self.GRIPPER_TEST_MODE:
-            self.robot.move_piece(move, checkmate=is_checkmate)
+            self.robot.move_piece(move, return_initial_position=return_initial_position, checkmate=is_checkmate, is_pawn=is_pawn)
 
         # Notify the robotic arm to move turn has finished
         self.robot_movement = False
 
-    def send_capture_robot(self, move, captured_piece, is_checkmate=False):
+    def send_capture_robot(self, move, captured_piece, is_checkmate=False, is_pawn=False):
         """Send the capture move to the robotic arm."""
         square_name = chess.square_name(move.to_square)
         print(f'[ROBOT - CAPTURED PIECE {captured_piece} AT]: {square_name}')
 
         if not self.GRIPPER_TEST_MODE:
-            self.robot.capture_piece(move, is_checkmate)
+            self.robot.capture_piece(move, is_checkmate, is_pawn=is_pawn)
 
         """Check for a move made via the camera."""
         if self.in_correction_mode:
