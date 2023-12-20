@@ -79,12 +79,13 @@ class MovementManager:
         # SPECIAL: TORRES
         """
         orients_torres = [2.096, 2.639, -0.423]
+        orients_torres = [2.035, 2.556, -0.250]
         """
         # orients_all_column = [2.096, 2.639, -0.423]
-        orients[4,0] = [2.096, 2.639, -0.423]
-        orients[4,1] = [2.096, 2.639, -0.423]
-        orients[4,2] = [2.096, 2.639, -0.423]
-        orients[4,3] = [2.096, 2.639, -0.423]
+        orients[4,0] = [2.035, 2.556, -0.250]
+        orients[4,1] = [2.035, 2.556, -0.250]
+        orients[4,2] = [2.035, 2.556, -0.250]
+        orients[4,3] = [2.035, 2.556, -0.250]
 
         self.orients = orients
 
@@ -134,11 +135,11 @@ class MovementManager:
             quadrant_init[1] = quadrant_final[1]
 
         # Change in "qs_orient_position"
-        # elif (quadrant_init[0] == 0 and quadrant_final[0] == 3):
-        #     quadrant_final[0] = 4       # quadrant_init[0]
+        elif (quadrant_init[0] == 0 and quadrant_final[0] == 3):
+            quadrant_final[0] = 4       # quadrant_init[0]
         
-        # elif (quadrant_init[0] == 3 and quadrant_final[0] == 0):
-        #     quadrant_init[0] = 4        # quadrant_final[0]
+        elif (quadrant_init[0] == 3 and quadrant_final[0] == 0):
+            quadrant_init[0] = 4        # quadrant_final[0]
 
         orient_init = self.orients[quadrant_init[0], quadrant_init[1]]
         orient_final = self.orients[quadrant_final[0], quadrant_final[1]]

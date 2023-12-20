@@ -3,16 +3,18 @@ from robot.src.MovementManager import MovementManager, decode_movement, orientat
 from robot.src.gripper import GripperManager
 
 class Robot:
-    def __init__(self, host, port, gripper_test_mode=False):
-        self.gm = GripperManager(host=host, port=port, test_mode=gripper_test_mode)
+    def __init__(self, gripper_test_mode=False):
+        self.gm = GripperManager(test_mode=gripper_test_mode)
         self.bp = BoardPositions(x0=0.43646, y0=-0.2545, x7=0.15070, y7=0.02702)
         self.posManager = MovementManager()
         self.gm.send_command(f"set_tcp(p[0.0,0.0,0.2286,0.0,0.0,0.0])\n")
 
-        self.original_joint = [0.0401425728, -1.5613715488, -1.4295991903, -1.7366026057, -4.7193702974, 0.028099801]
-        self.original_pose_coord  = [0.29370, 0.16464] # [0.293694398621, -0.122202442352]
+        # self.original_joint = [0.0401425728, -1.5613715488, -1.4295991903, -1.7366026057, -4.7193702974, 0.028099801]
+        # self.original_pose_coord  = [0.29370, 0.16464] # [0.293694398621, -0.122202442352]
+        self.original_joint = [-0.6928957, -1.88827172, -0.99413954, -1.83538824, -4.72896961, 0.028099801]
+        self.original_pose_coord  = [0.19331, -0.33896] # [0.293694398621, -0.122202442352]
 
-        self.box_coord = [0.29370, 0.16464]
+        self.box_coord = [0.19331, -0.33896] # [0.29370, 0.16464]
         self.box_orient = [2.220, -2.197, -0.009]
 
         self._initial_position()
@@ -21,8 +23,8 @@ class Robot:
     def _initial_position(self):
         # orientation = orientation_position(None, None)[0]
         orientation = self.box_orient
-        # self.gm.move_robot(self.original_pose_coord, orientation, 'up', self.original_joint, wait_time=2)
-        self.gm.move_robot(self.original_pose_coord, orientation, 'up')
+        self.gm.move_robot(self.original_pose_coord, orientation, 'up', self.original_joint, wait_time=2.5)
+        # self.gm.move_robot(self.original_pose_coord, orientation, 'up')
 
     def move_piece(self, movement, return_initial_position=True, checkmate=False, is_pawn=False):
         
