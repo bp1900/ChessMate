@@ -32,18 +32,18 @@ class GripperManager:
             self.s.connect((self.host, self.port))
 
     def open_gripper(self):
-        self.reconnect()
         if not self.test_mode:
-            send_info(1)
-        print("Gripper opened (test mode)") if self.test_mode else None
-        time.sleep(self.sleep_time)
+            self.reconnect()
+            send_info(1, HOST, PORT)
+            print("Gripper opened (test mode)") if self.test_mode else None
+            time.sleep(self.sleep_time)
 
     def close_gripper(self):
-        self.reconnect()
         if not self.test_mode:
-            send_info(0)
-        print("Gripper closed (test mode)") if self.test_mode else None
-        time.sleep(self.sleep_time)
+            self.reconnect()
+            send_info(0, HOST, PORT)
+            print("Gripper closed (test mode)") if self.test_mode else None
+            time.sleep(self.sleep_time)
 
     def send_command(self, command):
         if not self.test_mode:
@@ -75,64 +75,11 @@ class GripperManager:
         # command = f"movej(get_inverse_kin(p[{position[0]}, {position[1]}, {fixed_z_height}, {orientation[0]}, {orientation[1]}, {orientation[2]}], {q_vals} maxPositionError=1e-1, maxOrientationError=1e-3), a=0.1, v={velocity})\n"
         self.send_command(command)
         # time.sleep(self.sleep_time)
-        time.sleep(wait_time+0.2)
-
-'''
-class GripperManager:
-    def __init__(self, host='10.10.73.239', port=30002, sleep_time=2):
-        self.host = host # The remote host (robot IP)
-        self.port = port # The same port as used by the server
-        self.sleep_time = sleep_time
-
-        self.fixed_z_up = 0.105926875934
-        self.fixed_z_down = .0353469060551
-
-        print('Connecting to arm...')
-        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.s.connect((host, port))
-        print('Connected to arm')
-
-    def reconnect(self):
-        self.s.close()
-        time.sleep(1)
-        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.s.connect((self.host, self.port))
-
-    def open_gripper(self):
-        # Open gripper
-        self.reconnect()
-        send_info(1)
-        time.sleep(self.sleep_time)
-
-    def close_gripper(self):
-        # Close gripper
-        self.reconnect()
-        send_info(0)
-        time.sleep(self.sleep_time)
-
-    def send_command(self, command):
-        self.s.send(command.encode()) 
-
-    def move_robot(self, position, orientation, fixed_z_height, q_vals=None, wait_time=3.5, velocity=0.1):
-        if q_vals is None:
-            q_vals = "[...]"
-
-        if fixed_z_height == 'up':
-            fixed_z_height = self.fixed_z_up
-        else:
-            fixed_z_height = self.fixed_z_down
-
-        command = f"movej(get_inverse_kin(p[{position[0]}, {position[1]}, {fixed_z_height}, {orientation[0]}, {orientation[1]}, {orientation[2]}], {q_vals}, maxPositionError=1e-1, maxOrientationError=1e-3), a=1.0, v={velocity}, t={wait_time})\n"
-        self.send_command(command)
-        time.sleep(self.sleep_time)
-'''
-
+        if not self.test_mode:
+            time.sleep(wait_time+0.2)
 
 # POSSIBLEMENT POSAR AIXO DINS LA CLASSE?
-def send_info(v):
-    HOST = "10.10.73.237" # The remote host (robot IP)
-    PORT = 30002 # The same port as used by the server
-
+def send_info(v, HOST, PORT):
     # gripper = rpc_factor("xmlrpc", "http://"+HOST+":41414")
 
     # def grasp():
@@ -169,9 +116,3 @@ def send_info(v):
     f.close()
     s.close()
 
-def main():
-    send_info()
-
-
-if __name__ == "__main__":
-    main()
