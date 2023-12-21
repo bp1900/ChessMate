@@ -129,7 +129,7 @@ def detect_markers(image, select=False):
     if select:
         selected_points = select_points(image.copy())
     else:
-        selected_points = [(1046, 562), (1056, 939), (666, 561), (599, 938)]
+        selected_points = [(1043, 561), (1052, 938), (664, 559), (597, 935)]
 
     # Convert image to float and apply SLIC
     #image_float = img_as_float(image)

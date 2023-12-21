@@ -95,7 +95,7 @@ class ChessController(threading.Thread):
             if self.camera and not self.in_correction_mode:
                 if self.game_mode == "human-human":
                     self.camera.sample_board()
-                elif self.game_mode == "human-engine" and self.player_color != self.board.turn:
+                elif self.game_mode == "human-engine":
                     self.camera.sample_board()
 
                 # Get stats
@@ -196,8 +196,7 @@ class ChessController(threading.Thread):
 
         if self.camera is not None:
             self.camera.archive_wrong_move(num_moves_to_pop)
-
-        self.camera.sample_board()
+            self.camera.sample_board()
 
     def exit_correction_mode(self):
         self.in_correction_mode = False
@@ -351,12 +350,11 @@ class DetectionController(threading.Thread):
         self.camera = camera
 
     def run(self):
+        time.sleep(0.5)
         if self.mode == "engine-engine":
-            time.sleep(0.2)
             self.chess_controller.start_game_loop()
             return  # Do not run detection for engine-engine mode
         elif self.mode == "human-engine" and self.chess_controller.player_color == chess.BLACK:
-            time.sleep(0.2)
             self.chess_controller.start_game_loop()
             return
 

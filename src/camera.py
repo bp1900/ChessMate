@@ -16,6 +16,7 @@ import time
 import cv2
 import os
 import tkinter as tk
+import copy
 
 class Camera:
     def __init__(self, select_corners, large_threshold=20, small_threshold=10, max_history=2, parent=None):
@@ -25,6 +26,11 @@ class Camera:
 
         self.large_threshold = large_threshold
         self.small_threshold = small_threshold
+
+        self.stability_threshold = 5
+        self.stable_frame_count = 0
+        self.last_stable_frame = None
+        self.stability_ssim_threshold = 0.97
 
         self.sample_board()
 
@@ -37,6 +43,11 @@ class Camera:
         # Parent Tkinter widget
         self.parent = parent
         self._init_heatmaps()  # Initialize heatmaps
+
+        self.calculate_baseline_thresholds()
+
+
+
 
     ##################
     # CAMERA SETUP   #
@@ -74,7 +85,7 @@ class Camera:
 
         # Create a GridSpec with 4 columns and 2 rows (extra column for colorbar)
         gs = gridspec.GridSpec(2, 4, width_ratios=[1, 1, 1, 0.05])
-        self.fig_heatmaps = plt.figure(figsize=(10, 10))
+        self.fig_heatmaps = plt.figure(figsize=(10, 6))
 
         # Initialize the main heatmap and other detailed heatmaps
         self.detailed_heatmaps = {}
@@ -87,11 +98,11 @@ class Camera:
         for section, pos in heatmap_positions.items():
             ax = plt.subplot(gs[pos])
             if section == 'main':
-                self.heatmap = ax.imshow([[0]*8 for _ in range(8)], interpolation='nearest', vmin=0, vmax=50, cmap='jet')
+                self.heatmap = ax.imshow([[0]*8 for _ in range(8)], interpolation='nearest', vmin=0, vmax=100, cmap='jet')
                 ax.set_title("Main Heatmap")
             else:
                 # Initialize and store each detailed heatmap
-                detailed_heatmap = ax.imshow([[0]*8 for _ in range(8)], interpolation='nearest', vmin=0, vmax=50, cmap='jet')
+                detailed_heatmap = ax.imshow([[0]*8 for _ in range(8)], interpolation='nearest', vmin=0, vmax=100, cmap='jet')
                 self.detailed_heatmaps[section] = detailed_heatmap
                 ax.set_title(section.capitalize())
             
@@ -203,7 +214,7 @@ class Camera:
         options = mp_vision.HandLandmarkerOptions(base_options=base_options, num_hands=1)
         self.hand_detector = mp_vision.HandLandmarker.create_from_options(options)
 
-    def detect_hands(self, color_image, crop_left = 450, crop_right=600, crop_bottom=0, crop_top=500):
+    def detect_hands(self, color_image, crop_left = 100, crop_right=600, crop_bottom=0, crop_top=500):
         height, width = color_image.shape[:2]
 
         color_image = color_image[crop_top:(height - crop_bottom), crop_left:(width - crop_right)]
@@ -247,9 +258,44 @@ class Camera:
 
         return warped_image
     
+    def get_processed_frame(self):
+            warped_image = None
+            while True:
+                frames = self.pipe.wait_for_frames()
+                color_frame = frames.get_color_frame()
+
+                if not color_frame:
+                    continue
+
+                color_image = np.asanyarray(color_frame.get_data())
+
+                if self.detect_hands(color_image):
+                    self.stable_frame_count = 0  # Reset stability count if hands detected
+                    time.sleep(1)  # Wait before next frame capture
+                    continue
+
+                warped_image = apply_perspective_transform(color_image, self.corners)
+                warped_image = cv2.cvtColor(warped_image, cv2.COLOR_BGR2GRAY)
+
+                if self.last_stable_frame is not None:
+                    # Use SSIM to compare current frame with the last stable frame
+                    similarity = ssim(warped_image, self.last_stable_frame)
+
+                    if similarity > self.stability_ssim_threshold:
+                        self.stable_frame_count += 1
+                        time.sleep(0.15)
+                    else:
+                        self.stable_frame_count = 0  # Reset count if frames are not similar enough
+
+                self.last_stable_frame = warped_image
+
+                if self.stable_frame_count >= self.stability_threshold:
+                    break  # Exit loop if stability threshold reached
+
+            return warped_image
+
     def sample_board(self, max_samples=5, baseline_samples=2):
         sample_number = 0
-
         self.previous_frames = []
         while sample_number < max_samples:
             frame = self.get_processed_frame()
@@ -258,9 +304,8 @@ class Camera:
                 self.previous_frames.append(frame)
                 time.sleep(0.01)
 
-        self.baseline_frames = []
-        
         baseline_number = 0
+        self.baseline_frames = []
         while baseline_number < baseline_samples:
             frame = self.get_processed_frame()
             if frame is not None:
@@ -268,10 +313,7 @@ class Camera:
                 self.baseline_frames.append(frame)
                 time.sleep(0.01)
 
-        self.calculate_baseline_thresholds()
-
         frames_as_squares = [[] for _ in range(64)]
-
         for frame in self.previous_frames:
             squares = divide_into_squares(frame, extended=self.extended)
             for j, square in enumerate(squares):
@@ -280,7 +322,7 @@ class Camera:
         self.old_squares = frames_as_squares
 
 
-    def calculate_baseline_thresholds(self, percentile=0.9):
+    def calculate_baseline_thresholds(self):
         print("Computing baseline")
         self.baseline_thresholds = {'overall': {}, 'sections': {}}
 
@@ -296,7 +338,7 @@ class Camera:
         #plt.tight_layout()
         #plt.show()
 
-        num_squares = len(baseline_squares_list[0])  # Assuming each list has the same number of squares
+        num_squares = len(baseline_squares_list[0])
 
         for idx in range(num_squares):
             overall_diffs, section_diffs = [], {'center': [], 'left': [], 'right': [], 'top': [], 'bottom': []}
@@ -312,14 +354,15 @@ class Camera:
                     overall_diffs.append(1 - overall_score)
 
                     # Calculate section SSIMs
-                    for section in section_diffs.keys():
-                        section_score, _ = ssim(baseline_sections[section], sample_sections[section], full=True)
-                        section_diffs[section].append(1 - section_score)
+                    #for section in section_diffs.keys():
+                    #    section_score, _ = ssim(baseline_sections[section], sample_sections[section], full=True)
+                    #    section_diffs[section].append(1 - section_score)
 
             # Calculate metrics for overall and section differences
             self.baseline_thresholds['overall'][idx] = calculate_threshold_metrics(overall_diffs)
             #for section in section_diffs:
             #    self.baseline_thresholds['sections'][section][idx] = calculate_threshold_metrics(section_diffs[section])
+
 
     def get_relevant_squares(self, board, turn):
         """Get squares relevant to the current turn."""
@@ -363,16 +406,9 @@ class Camera:
 
         # Sort and filter based on overall changes
         square_diffs.sort(key=lambda x: x[1], reverse=True)
-        #return [(idx, avg_diff) for idx, avg_diff in square_diffs if avg_diff > self.large_threshold]
+        return [(idx, avg_diff) for idx, avg_diff in square_diffs if (avg_diff > self.large_threshold and avg_diff < 90)]
 
-        print(square_diffs)
-        print()
-        print(self.baseline_thresholds['overall'])
-        print()
-        print()
-        return [(idx, avg_diff) for idx, avg_diff in square_diffs if avg_diff > self.baseline_thresholds['overall'][idx]['estimated_max']]
-
-
+        #return [(idx, avg_diff) for idx, avg_diff in square_diffs if avg_diff > self.baseline_thresholds['overall'][idx]['estimated_max']]
 
     def ssim_small(self, squares, detailed_threshold=6):
         new_squares = divide_into_squares(self.frame, extended=self.extended)
@@ -537,6 +573,8 @@ class Camera:
             # Update wrong moves count
             self.wrong_moves += 1
             self.correct_moves -= 1
+        
+        self.print_stats()
 
     def save_combined_heatmap(self, filename, main_heatmap_data, detailed_heatmap_data):
         # Create a figure with GridSpec layout
@@ -574,7 +612,3 @@ class Camera:
         plt.tight_layout()
         plt.savefig(filename)
         plt.close(fig)
-
-
-
-
