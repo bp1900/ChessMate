@@ -8,7 +8,8 @@ from camera import Camera
 import queue
 
 # SETUP
-CAMERA = False
+CAMERA = True
+SELECT_CORNERS = False
 
 GRIPPER_TEST_MODE = True
 HOST = '10.10.73.239'
@@ -42,7 +43,7 @@ def launch_game_mode(mode_selection_window, mode, color=None):
 
         # Create the camera
         max_history = 1 if mode == "human-human" else 2
-        camera = Camera(large_threshold=LARGE_THRS, small_threshold=SMALL_THRS, max_history=max_history, parent=heatmap_frame)
+        camera = Camera(select_corners=SELECT_CORNERS, large_threshold=LARGE_THRS, small_threshold=SMALL_THRS, max_history=max_history, parent=heatmap_frame)
     else:
         camera = None
 

@@ -41,7 +41,7 @@ def select_points(image, num_points=6):
     return points
 
 def apply_perspective_transform(image, corners, chessboard_size=(7, 7), square_size_cm=4, pixels_per_cm=20):
-    if len(corners) != 6:
+    if not (len(corners) == 4 or len(corners) == 6):
         return None
 
     # Main chessboard transform
@@ -55,28 +55,52 @@ def apply_perspective_transform(image, corners, chessboard_size=(7, 7), square_s
         [main_chessboard_width_px - 1, chessboard_height_px - 1],
     ], dtype="float32")
     M_main = cv2.getPerspectiveTransform(pts_src_main, pts_dst_main)
-    main_chessboard = cv2.warpPerspective(image, M_main, (main_chessboard_width_px, chessboard_height_px))
+    chessboard = cv2.warpPerspective(image, M_main, (main_chessboard_width_px, chessboard_height_px))
 
     # Last column transform
-    last_col_width_px = 7 * pixels_per_cm
-    pts_src_last_col = np.array([corners[4], corners[0], corners[5], corners[2]], dtype="float32")
-    pts_dst_last_col = np.array([
-        [0, 0],
-        [last_col_width_px - 1, 0],
-        [0, chessboard_height_px - 1],
-        [last_col_width_px - 1, chessboard_height_px - 1],
-    ], dtype="float32")
-    M_last_col = cv2.getPerspectiveTransform(pts_src_last_col, pts_dst_last_col)
-    last_column = cv2.warpPerspective(image, M_last_col, (last_col_width_px, chessboard_height_px))
+    if len(corners) == 6:
+        last_col_width_px = 7 * pixels_per_cm
+        pts_src_last_col = np.array([corners[4], corners[0], corners[5], corners[2]], dtype="float32")
+        pts_dst_last_col = np.array([
+            [0, 0],
+            [last_col_width_px - 1, 0],
+            [0, chessboard_height_px - 1],
+            [last_col_width_px - 1, chessboard_height_px - 1],
+        ], dtype="float32")
+        M_last_col = cv2.getPerspectiveTransform(pts_src_last_col, pts_dst_last_col)
+        last_column = cv2.warpPerspective(image, M_last_col, (last_col_width_px, chessboard_height_px))
 
     # Combine the two parts
-    combined_chessboard = np.hstack((last_column, main_chessboard)) # before rotation
+        chessboard = np.hstack((last_column, chessboard)) # before rotation
 
     # Rotate the image around the y-axis (horizontal flip)
     #rotated_image = cv2.flip(combined_chessboard, 1)
 
-    cv2.imshow('Chessboard', combined_chessboard)
-    return combined_chessboard
+    cv2.imshow('Chessboard', chessboard)
+    return chessboard
+
+
+def divide_into_squares(warped_image, chessboard_size=(8, 8), extended_first_col_width_cm=7, pixels_per_cm=20, extended=True):
+    squares = []
+    height, width = warped_image.shape[:2]
+    square_height = int(height / chessboard_size[0])
+    square_width = int(width / chessboard_size[1]) if not extended else int((width - extended_first_col_width_cm * pixels_per_cm) / (chessboard_size[1] - 1))
+
+    if extended:
+        extended_first_col_width_px = extended_first_col_width_cm * pixels_per_cm
+
+    for row in range(chessboard_size[0]):
+        for col in range(chessboard_size[1]):
+            if extended and col == 0:  # First column with extended width
+                col_width = extended_first_col_width_px
+            else:
+                col_width = square_width
+
+            start_col = col * square_width if not extended or col == 0 else extended_first_col_width_px + (col - 1) * square_width
+            square = warped_image[row * square_height:(row + 1) * square_height, start_col:(start_col + col_width)]
+            squares.append(square)
+
+    return squares
 
 def divide_into_squares_left(warped_image, chessboard_size=(8, 8), extended_last_col_width_cm=7, pixels_per_cm=20):
     squares = []
@@ -97,32 +121,15 @@ def divide_into_squares_left(warped_image, chessboard_size=(8, 8), extended_last
 
     return squares
 
-def divide_into_squares(warped_image, chessboard_size=(8, 8), extended_first_col_width_cm=7, pixels_per_cm=20):
-    squares = []
-    square_size = int(warped_image.shape[0] / chessboard_size[0])
-    extended_first_col_width_px = extended_first_col_width_cm * pixels_per_cm
-
-    for row in range(chessboard_size[0]):
-        for col in range(chessboard_size[1]):
-            if col == 0:  # First column
-                # For the first column, use the extended width
-                square = warped_image[row*square_size:(row+1)*square_size,
-                                      col*square_size:col*square_size + extended_first_col_width_px]
-            else:
-                # Adjust the start of the next square to account for the extended first column
-                start_col = col*square_size + (extended_first_col_width_px - square_size)
-                square = warped_image[row*square_size:(row+1)*square_size,
-                                      start_col:(start_col+square_size)]
-            squares.append(square)
-
-    return squares
-
 # Function to find corners of markers
-def detect_markers(image):
-    # Let user manually select points on the markers
-    selected_points = [(1084, 597), (1096, 937), (702, 598), (646, 933), (1086, 546), (709, 549)] 
+def detect_markers(image, select=False):
     # vermell (casella anterior), magenta (casella anterior), groc, blau, adalt vermell, adalt groc
-    #selected_points = select_points(image.copy())
+
+    # Let user manually select points on the markers
+    if select:
+        selected_points = select_points(image.copy())
+    else:
+        selected_points = [(1046, 562), (1056, 939), (666, 561), (599, 938)]
 
     # Convert image to float and apply SLIC
     #image_float = img_as_float(image)
@@ -226,3 +233,11 @@ def calculate_estimated_maximum(mean, std, percentile=0.999):
     # Calculate the estimated maximum
     estimated_max = mean + z_score * std
     return estimated_max
+
+def calculate_threshold_metrics(diffs):
+    return {
+        'median': np.median(diffs),
+        'max': np.max(diffs),
+        'std': np.std(diffs),
+        'estimated_max': calculate_estimated_maximum(np.mean(diffs), np.std(diffs))
+    }

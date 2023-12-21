@@ -94,9 +94,9 @@ class ChessController(threading.Thread):
             
             if self.camera and not self.in_correction_mode:
                 if self.game_mode == "human-human":
-                    self.camera.sample_board('previous_turn')
+                    self.camera.sample_board()
                 elif self.game_mode == "human-engine" and self.player_color != self.board.turn:
-                    self.camera.sample_board('previous_turn')
+                    self.camera.sample_board()
 
                 # Get stats
                 self.camera.print_stats()
@@ -178,7 +178,7 @@ class ChessController(threading.Thread):
             self.robot_movement = False
 
         if self.camera:
-            self.camera.sample_board('previous_turn')
+            self.camera.sample_board()
 
     def handle_wrong_move(self):
         # Determine whose turn it is currently
@@ -197,14 +197,14 @@ class ChessController(threading.Thread):
         if self.camera is not None:
             self.camera.archive_wrong_move(num_moves_to_pop)
 
-        self.camera.sample_board('previous_turn')
+        self.camera.sample_board()
 
     def exit_correction_mode(self):
         self.in_correction_mode = False
 
         if self.camera:
             # Sample the board for the previous turn, effectively resetting the detection state
-            self.camera.sample_board('previous_turn')
+            self.camera.sample_board()
 
         if self.game_mode == "human-engine" and not self.board.turn != self.player_color:
             # If it's the robot's turn after exiting correction mode, get the engine's move
@@ -254,6 +254,8 @@ class ChessController(threading.Thread):
         if not self.GRIPPER_TEST_MODE:
             self.robot.capture_piece(move, is_checkmate, is_pawn=is_pawn)
 
+'''
+
 class DetectionController(threading.Thread):
     def __init__(self, chess_controller, camera, command_queue, mode):
         threading.Thread.__init__(self)
@@ -262,7 +264,7 @@ class DetectionController(threading.Thread):
         self.command_queue = command_queue
         self.mode = mode
         self.camera = camera
-        self.transcriber = Transcriber()
+        #self.transcriber = Transcriber()
         self.transcriber_active = False
         self.camera_thread = None
         self.camera_active = False
@@ -281,13 +283,13 @@ class DetectionController(threading.Thread):
         while True:
             # Check for camera move or other inputs
             if self.should_detect():
-                if not self.transcriber_active:
+                if False and not self.transcriber_active:
                     self.start_transcriber_thread()
 
                 if not self.camera_active:
                     self.start_camera_thread()
             else:
-                if self.transcriber_active:
+                if False and self.transcriber_active:
                     self.stop_transcriber_thread()
                 if self.camera_active:
                     self.stop_camera_thread()
@@ -380,5 +382,3 @@ class DetectionController(threading.Thread):
         # Start the detection loop in a separate thread
         detection_loop_thread = threading.Thread(target=self.run)
         detection_loop_thread.start()
-
-'''

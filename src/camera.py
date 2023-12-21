@@ -18,16 +18,15 @@ import os
 import tkinter as tk
 
 class Camera:
-    def __init__(self, large_threshold=20, small_threshold=10, max_history=2, parent=None):
+    def __init__(self, select_corners, large_threshold=20, small_threshold=10, max_history=2, parent=None):
         self._setup_camera()
-        self._get_corners()
+        self._get_corners(select_corners)
         self._init_hand_detector()
 
         self.large_threshold = large_threshold
         self.small_threshold = small_threshold
 
-        self.sample_board("previous_turn")
-        #self._init_detailed_heatmap()
+        self.sample_board()
 
         self.frame_history = []
         self.max_history = max_history
@@ -51,17 +50,18 @@ class Camera:
         cfg.enable_stream(rs.stream.color, 1920, 1080, rs.format.bgr8, 30)
         self.pipe.start(cfg)
 
-        # Lose the first 5 frames, as they are often corrupted
-        for _ in range(5):
+        # Lose the first 10 frames, as they are often darker
+        for _ in range(10):
             _ = self.pipe.wait_for_frames()
 
-    def _get_corners(self):
+    def _get_corners(self, select_corners):
         # Get the corners of the markers
         frame = self.pipe.wait_for_frames()
         color_frame = frame.get_color_frame()
         color_image = np.asanyarray(color_frame.get_data())
 
-        self.corners = detect_markers(color_image)
+        self.corners = detect_markers(color_image, select_corners)
+        self.extended = len(self.corners) == 6
 
     ##################
     # HEATMAP        #
@@ -74,7 +74,7 @@ class Camera:
 
         # Create a GridSpec with 4 columns and 2 rows (extra column for colorbar)
         gs = gridspec.GridSpec(2, 4, width_ratios=[1, 1, 1, 0.05])
-        self.fig_heatmaps = plt.figure(figsize=(15, 10))
+        self.fig_heatmaps = plt.figure(figsize=(10, 10))
 
         # Initialize the main heatmap and other detailed heatmaps
         self.detailed_heatmaps = {}
@@ -97,6 +97,8 @@ class Camera:
             
             ax.set_xticks(range(8))
             ax.set_yticks(range(8))
+            ax.set_xticklabels(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'])
+            ax.set_yticklabels(['8', '7', '6', '5', '4', '3', '2', '1'])
 
         # Create colorbar in the last column, spanning all rows
         cb_ax = plt.subplot(gs[:, -1])
@@ -201,17 +203,17 @@ class Camera:
         options = mp_vision.HandLandmarkerOptions(base_options=base_options, num_hands=1)
         self.hand_detector = mp_vision.HandLandmarker.create_from_options(options)
 
-    def detect_hands(self, color_frame, crop_left = 500, crop_right=600, crop_bottom=0, crop_top=300):
-        color_image = np.asanyarray(color_frame.get_data())
-
+    def detect_hands(self, color_image, crop_left = 450, crop_right=600, crop_bottom=0, crop_top=500):
         height, width = color_image.shape[:2]
 
         color_image = color_image[crop_top:(height - crop_bottom), crop_left:(width - crop_right)]
-
+        color_image = color_image.astype(np.uint8)
+        
         cv2.imwrite(f'detect_hand.png', color_image)
-
-        #mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=color_image)
-        mp_image = mp.Image.create_from_file(f'detect_hand.png')
+        #cv2.imshow(f'detect_hand.png', color_image)
+        
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=color_image)
+        #mp_image = mp.Image.create_from_file(f'detect_hand.png')
         
         # Detect hands
         detection_result = self.hand_detector.detect(mp_image)
@@ -234,96 +236,90 @@ class Camera:
 
             if not color_frame:
                 continue
-
-            if self.detect_hands(color_frame):
-                time.sleep(3)
-                continue
-
+                
             color_image = np.asanyarray(color_frame.get_data())
-            warped_image = apply_perspective_transform(color_image, self.corners)
+
+            if self.detect_hands(color_image):
+                time.sleep(5)
+            else:
+                warped_image = apply_perspective_transform(color_image, self.corners)
+                warped_image = cv2.cvtColor(warped_image, cv2.COLOR_BGR2GRAY)
 
         return warped_image
     
-    def sample_board(self, folder_name, max_samples=5, baseline_samples=2):
-        # Create folder if it doesn't exist
-        if not os.path.exists(folder_name):
-            os.makedirs(folder_name)
-
+    def sample_board(self, max_samples=5, baseline_samples=2):
         sample_number = 0
 
+        self.previous_frames = []
         while sample_number < max_samples:
             frame = self.get_processed_frame()
-
             if frame is not None:
-                # Save the entire frame
-                frame_filename = os.path.join(folder_name, f'frame_sample_{sample_number}.jpg')
-                cv2.imwrite(frame_filename, frame)
                 sample_number += 1
+                self.previous_frames.append(frame)
                 time.sleep(0.01)
 
         self.baseline_frames = []
-        for _ in range(baseline_samples):
+        
+        baseline_number = 0
+        while baseline_number < baseline_samples:
             frame = self.get_processed_frame()
             if frame is not None:
+                baseline_number += 1
                 self.baseline_frames.append(frame)
                 time.sleep(0.01)
 
         self.calculate_baseline_thresholds()
 
+        frames_as_squares = [[] for _ in range(64)]
+
+        for frame in self.previous_frames:
+            squares = divide_into_squares(frame, extended=self.extended)
+            for j, square in enumerate(squares):
+                frames_as_squares[j].append(square)
+
+        self.old_squares = frames_as_squares
+
+
     def calculate_baseline_thresholds(self, percentile=0.9):
+        print("Computing baseline")
         self.baseline_thresholds = {'overall': {}, 'sections': {}}
 
         # Preprocess to divide frames into squares and sections only once
-        baseline_squares_list = [divide_into_squares(frame) for frame in self.baseline_frames]
-        sample_squares_list = [divide_into_squares(frame) for frame in self.previous_frames]
+        baseline_squares_list = [divide_into_squares(frame, extended=self.extended) for frame in self.baseline_frames]
+        sample_squares_list = [divide_into_squares(frame, extended=self.extended) for frame in self.previous_frames]
 
-        for idx, baseline_squares in enumerate(zip(*baseline_squares_list)):
+        #fix, axs = plt.subplots(8, 8, figsize=(10, 10))
+        #for i, ax in enumerate(axs.flatten()):
+        #    ax.imshow(baseline_squares_list[0][i], cmap='gray')
+        #    ax.axis('off')
+        #    print(i)
+        #plt.tight_layout()
+        #plt.show()
+
+        num_squares = len(baseline_squares_list[0])  # Assuming each list has the same number of squares
+
+        for idx in range(num_squares):
             overall_diffs, section_diffs = [], {'center': [], 'left': [], 'right': [], 'top': [], 'bottom': []}
-            baseline_sections_list = [split_into_sections(square) for square in baseline_squares]
 
-            for sample_squares in zip(*sample_squares_list):
-                sample_square = sample_squares[idx]
-                sample_sections = split_into_sections(sample_square)
+            for baseline_square in [squares[idx] for squares in baseline_squares_list]:
+                baseline_sections = split_into_sections(baseline_square)
 
-                # Calculate overall SSIM
-                overall_scores = [ssim(baseline_square, sample_square, full=True)[0] for baseline_square in baseline_squares]
-                overall_diffs.extend([1 - score for score in overall_scores])
+                for sample_square in [squares[idx] for squares in sample_squares_list]:
+                    sample_sections = split_into_sections(sample_square)
 
-                # Calculate section SSIMs
-                for section in section_diffs.keys():
-                    section_scores = [ssim(baseline_sections[section], sample_sections[section], full=True)[0] 
-                                    for baseline_sections in baseline_sections_list]
-                    section_diffs[section].extend([1 - score for score in section_scores])
+                    # Calculate overall SSIM
+                    overall_score, _ = ssim(baseline_square, sample_square, full=True)
+                    overall_diffs.append(1 - overall_score)
 
-            # Calculate median, max, and standard deviation as thresholds
-            self.baseline_thresholds['overall'][idx] = {
-                'median': np.median(overall_diffs),
-                'max': np.max(overall_diffs),
-                'std': np.std(overall_diffs),
-                'estimated_max': calculate_estimated_maximum(np.mean(overall_diffs), np.std(overall_diffs)),
-            }
-            for section in section_diffs:
-                self.baseline_thresholds['sections'][section][idx] = {
-                    'median': np.median(section_diffs[section]),
-                    'max': np.max(section_diffs[section]),
-                    'std': np.std(section_diffs[section]),
-                    'estimated_max': calculate_estimated_maximum(np.mean(section_diffs[section]), np.std(section_diffs[section]))
-                }
+                    # Calculate section SSIMs
+                    for section in section_diffs.keys():
+                        section_score, _ = ssim(baseline_sections[section], sample_sections[section], full=True)
+                        section_diffs[section].append(1 - section_score)
 
-    def load_saved_frames_as_squares(self, folder_name="previous_turn", num_samples=5):
-        frames_as_squares = [[] for _ in range(64)]  # Assuming standard 8x8 chessboard
-
-        self.previous_frames = []
-        for i in range(num_samples):
-            frame_path = os.path.join(folder_name, f'frame_sample_{i}.jpg')
-            frame = cv2.imread(frame_path, cv2.IMREAD_COLOR)
-            self.previous_frames.append(frame)
-            if frame is not None:
-                squares = divide_into_squares(frame)
-                for j, square in enumerate(squares):
-                    frames_as_squares[j].append(square)
-
-        self.old_squares = frames_as_squares
+            # Calculate metrics for overall and section differences
+            self.baseline_thresholds['overall'][idx] = calculate_threshold_metrics(overall_diffs)
+            #for section in section_diffs:
+            #    self.baseline_thresholds['sections'][section][idx] = calculate_threshold_metrics(section_diffs[section])
 
     def get_relevant_squares(self, board, turn):
         """Get squares relevant to the current turn."""
@@ -340,7 +336,6 @@ class Camera:
     ##################
 
     def compare_squares(self, board, turn):
-        self.load_saved_frames_as_squares()
         self.frame = self.get_processed_frame()
         ssim_squares = self.ssim_square(board, turn)
         detailed_squares = self.ssim_small(ssim_squares)
@@ -348,18 +343,16 @@ class Camera:
 
     def ssim_square(self, board, turn):
         relevant_squares = self.get_relevant_squares(board, turn)
-        new_squares = divide_into_squares(self.frame)
+        new_squares = divide_into_squares(self.frame, extended=self.extended)
 
         square_diffs = []
         for idx in relevant_squares:
             new = new_squares[idx]
             if new is not None:
-                new_gray = cv2.cvtColor(new, cv2.COLOR_BGR2GRAY)
                 diffs = []
                 for old_sample in self.old_squares[idx]:
                     if old_sample is not None:
-                        old_gray = cv2.cvtColor(old_sample, cv2.COLOR_BGR2GRAY)
-                        score, _ = ssim(old_gray, new_gray, full=True)
+                        score, _ = ssim(old_sample, new, full=True)
                         diff = (1 - score) * 100
                         diffs.append(diff)
 
@@ -371,23 +364,30 @@ class Camera:
         # Sort and filter based on overall changes
         square_diffs.sort(key=lambda x: x[1], reverse=True)
         #return [(idx, avg_diff) for idx, avg_diff in square_diffs if avg_diff > self.large_threshold]
+
+        print(square_diffs)
+        print()
+        print(self.baseline_thresholds['overall'])
+        print()
+        print()
         return [(idx, avg_diff) for idx, avg_diff in square_diffs if avg_diff > self.baseline_thresholds['overall'][idx]['estimated_max']]
 
+
+
     def ssim_small(self, squares, detailed_threshold=6):
-        new_squares = divide_into_squares(self.frame)
+        new_squares = divide_into_squares(self.frame, extended=self.extended)
 
         detailed_square_diffs = []
         for idx, avg_diff in squares[:detailed_threshold]:
             new = new_squares[idx]
-            new_sections_gray = split_into_sections(cv2.cvtColor(new, cv2.COLOR_BGR2GRAY))
+            new_sections = split_into_sections(new)
             # Visualize the sections
             diffs = {'center': 0, 'left': 0, 'right': 0, 'top': 0, 'bottom': 0}
             for old_sample in self.old_squares[idx]:
                 if old_sample is not None:
-                    old_sample_gray = cv2.cvtColor(old_sample, cv2.COLOR_BGR2GRAY)
-                    old_sections_gray = split_into_sections(old_sample_gray)
-                    for section in new_sections_gray:
-                        score, _ = ssim(old_sections_gray[section], new_sections_gray[section], full=True)
+                    old_sections = split_into_sections(old_sample)
+                    for section in new_sections:
+                        score, _ = ssim(old_sections[section], new_sections[section], full=True)
                         diff = (1 - score) * 100
                         diffs[section] += diff
             avg_diffs = {section: diffs[section] / len(self.old_squares[idx]) for section in diffs}
