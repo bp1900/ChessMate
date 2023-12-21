@@ -1,0 +1,6 @@
+- Test Voice with USB mic. 
+    python .\src\transcriber.py
+- Test Camera with event driven module
+- Test baseline comparision
+- Test heatmap
+- Test wrong move

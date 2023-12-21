@@ -4,6 +4,7 @@ import time
 import threading
 from camera import Camera
 import tkinter as tk
+from transcriber import Transcriber
 
 #################
 # CHESS CONTROL #
@@ -37,7 +38,7 @@ class ChessController(threading.Thread):
 
         # Obtain the current piece
         current_piece = self.board.piece_at(move.from_square)
-        current_is_pawn = (current_piece.piece_type == chess.PAWN)
+        current_is_pawn = (current_piece is not None and current_piece.piece_type == chess.PAWN)
 
         # If the robot/engine is not moving, and its possible to promote a pawn, ask the user for the promotion piece
         if not self.robot_movement and self.is_pawn_promotion_candidate(move):
@@ -261,6 +262,91 @@ class DetectionController(threading.Thread):
         self.command_queue = command_queue
         self.mode = mode
         self.camera = camera
+        self.transcriber = Transcriber()
+        self.transcriber_active = False
+        self.camera_thread = None
+        self.camera_active = False
+        
+    def run(self):
+        # Do not run detection for engine-engine mode
+        if self.mode == "engine-engine":
+            time.sleep(0.2)
+            self.chess_controller.start_game_loop()
+            return
+        elif self.mode == "human-engine" and self.chess_controller.player_color == chess.BLACK:
+            time.sleep(0.2)
+            self.chess_controller.start_game_loop()
+            return
+
+        while True:
+            # Check for camera move or other inputs
+            if self.should_detect():
+                if not self.transcriber_active:
+                    self.start_transcriber_thread()
+
+                if not self.camera_active:
+                    self.start_camera_thread()
+            else:
+                if self.transcriber_active:
+                    self.stop_transcriber_thread()
+                if self.camera_active:
+                    self.stop_camera_thread()
+            time.sleep(1)
+
+    def should_detect(self):
+        # Detect only on the human player's turn
+        if self.mode == "human-human":
+            return True
+        elif self.mode == "human-engine":
+            return self.chess_controller.board.turn == self.player_color
+        return False
+
+    def start_transcriber_thread(self):
+        # Check if Transcriber is already running
+        if not self.transcriber_active:
+            # Create and start the Transcriber thread
+            self.transcriber_thread = threading.Thread(target=self.transcriber.transcribe, args=("move",))
+            self.transcriber_thread.start()
+            self.transcriber_active = True
+
+    def stop_transcriber_thread(self):
+        if self.transcriber_active:
+            self.transcriber.stop()
+            # Ensure that the thread finishes execution
+            self.transcriber_thread.join()
+            self.transcriber_active = False
+
+    def start_camera_thread(self):
+        if self.camera and not self.camera_thread:
+            self.camera_thread = threading.Thread(target=self.process_camera)
+            self.camera_thread.start()
+            self.camera_active = True
+
+    def process_camera(self):
+        move = self.camera.recognize_move(self.chess_controller.board, self.chess_controller.board.turn)
+        if move:
+            self.command_queue.put(move)
+        self.camera_active = False
+        self.camera_thread = None
+
+    def stop_camera_thread(self):
+        if self.camera_thread:
+            self.camera_active = False
+            self.camera_thread = None
+
+    def start_detection_loop(self):
+        detection_loop_thread = threading.Thread(target=self.run)
+        detection_loop_thread.start()
+
+'''
+class DetectionController(threading.Thread):
+    def __init__(self, chess_controller, camera, command_queue, mode):
+        threading.Thread.__init__(self)
+        self.chess_controller = chess_controller
+        self.player_color = chess_controller.player_color
+        self.command_queue = command_queue
+        self.mode = mode
+        self.camera = camera
 
     def run(self):
         if self.mode == "engine-engine":
@@ -294,3 +380,5 @@ class DetectionController(threading.Thread):
         # Start the detection loop in a separate thread
         detection_loop_thread = threading.Thread(target=self.run)
         detection_loop_thread.start()
+
+'''

@@ -9,7 +9,6 @@ from queue import Queue
 from time import sleep
 from sys import platform
 
-
 class Transcriber:
     def __init__(self):
         self.phrase_time = None
@@ -41,8 +40,9 @@ class Transcriber:
         self.data_queue.put(data)
 
     def transcribe(self, mode):
+        print("Listening for audio...")
         while self.running:
-            try:
+            if not self.data_queue.empty():
                 now = datetime.utcnow()
                 # Pull raw recorded audio from the queue.
                 if not self.data_queue.empty():
@@ -80,9 +80,10 @@ class Transcriber:
                     for line in self.transcription:
                         print(line)
 
+                    if self.running:
+                        break
+
                     sleep(0.25)
-            except KeyboardInterrupt:
-                self.running = False
 
         print("\n\nTranscription:")
         for line in self.transcription:
@@ -106,6 +107,12 @@ class Transcriber:
                     print(f"Detected color(s): {', '.join(found_colors)}")
                     # You can implement additional processing here
                     self.running = False
+
+    def stop(self):
+        self.running = False
+
+    def start(self):
+        self.running = True
 
 if __name__ == "__main__":
     transcriber = Transcriber()

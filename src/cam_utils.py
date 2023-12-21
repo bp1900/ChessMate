@@ -2,6 +2,7 @@ import os
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+from scipy.stats import norm
 
 
 def chess_square_to_camera_perspective(square_idx):
@@ -218,3 +219,10 @@ def split_into_sections(square):
     top = square[:h//2, :]
     bottom = square[h//2:, :]
     return {'center': center, 'left': left, 'right': right, 'top': top, 'bottom': bottom}
+
+def calculate_estimated_maximum(mean, std, percentile=0.999):
+    # Calculate the z-score for the given percentile
+    z_score = norm.ppf(percentile)
+    # Calculate the estimated maximum
+    estimated_max = mean + z_score * std
+    return estimated_max

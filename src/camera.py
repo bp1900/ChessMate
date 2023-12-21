@@ -39,7 +39,6 @@ class Camera:
         self.parent = parent
         self._init_heatmaps()  # Initialize heatmaps
 
-
     ##################
     # CAMERA SETUP   #
     ##################
@@ -245,7 +244,7 @@ class Camera:
 
         return warped_image
     
-    def sample_board(self, folder_name, max_samples=5):
+    def sample_board(self, folder_name, max_samples=5, baseline_samples=2):
         # Create folder if it doesn't exist
         if not os.path.exists(folder_name):
             os.makedirs(folder_name)
@@ -261,6 +260,55 @@ class Camera:
                 cv2.imwrite(frame_filename, frame)
                 sample_number += 1
                 time.sleep(0.01)
+
+        self.baseline_frames = []
+        for _ in range(baseline_samples):
+            frame = self.get_processed_frame()
+            if frame is not None:
+                self.baseline_frames.append(frame)
+                time.sleep(0.01)
+
+        self.calculate_baseline_thresholds()
+
+    def calculate_baseline_thresholds(self, percentile=0.9):
+        self.baseline_thresholds = {'overall': {}, 'sections': {}}
+
+        # Preprocess to divide frames into squares and sections only once
+        baseline_squares_list = [divide_into_squares(frame) for frame in self.baseline_frames]
+        sample_squares_list = [divide_into_squares(frame) for frame in self.previous_frames]
+
+        for idx, baseline_squares in enumerate(zip(*baseline_squares_list)):
+            overall_diffs, section_diffs = [], {'center': [], 'left': [], 'right': [], 'top': [], 'bottom': []}
+            baseline_sections_list = [split_into_sections(square) for square in baseline_squares]
+
+            for sample_squares in zip(*sample_squares_list):
+                sample_square = sample_squares[idx]
+                sample_sections = split_into_sections(sample_square)
+
+                # Calculate overall SSIM
+                overall_scores = [ssim(baseline_square, sample_square, full=True)[0] for baseline_square in baseline_squares]
+                overall_diffs.extend([1 - score for score in overall_scores])
+
+                # Calculate section SSIMs
+                for section in section_diffs.keys():
+                    section_scores = [ssim(baseline_sections[section], sample_sections[section], full=True)[0] 
+                                    for baseline_sections in baseline_sections_list]
+                    section_diffs[section].extend([1 - score for score in section_scores])
+
+            # Calculate median, max, and standard deviation as thresholds
+            self.baseline_thresholds['overall'][idx] = {
+                'median': np.median(overall_diffs),
+                'max': np.max(overall_diffs),
+                'std': np.std(overall_diffs),
+                'estimated_max': calculate_estimated_maximum(np.mean(overall_diffs), np.std(overall_diffs)),
+            }
+            for section in section_diffs:
+                self.baseline_thresholds['sections'][section][idx] = {
+                    'median': np.median(section_diffs[section]),
+                    'max': np.max(section_diffs[section]),
+                    'std': np.std(section_diffs[section]),
+                    'estimated_max': calculate_estimated_maximum(np.mean(section_diffs[section]), np.std(section_diffs[section]))
+                }
 
     def load_saved_frames_as_squares(self, folder_name="previous_turn", num_samples=5):
         frames_as_squares = [[] for _ in range(64)]  # Assuming standard 8x8 chessboard
@@ -322,8 +370,9 @@ class Camera:
 
         # Sort and filter based on overall changes
         square_diffs.sort(key=lambda x: x[1], reverse=True)
-        return [(idx, avg_diff) for idx, avg_diff in square_diffs if avg_diff > self.large_threshold]
-    
+        #return [(idx, avg_diff) for idx, avg_diff in square_diffs if avg_diff > self.large_threshold]
+        return [(idx, avg_diff) for idx, avg_diff in square_diffs if avg_diff > self.baseline_thresholds['overall'][idx]['estimated_max']]
+
     def ssim_small(self, squares, detailed_threshold=6):
         new_squares = divide_into_squares(self.frame)
 
@@ -389,11 +438,11 @@ class Camera:
                 if from_sq != to_sq:
                     move = chess.Move.from_uci(f"{index_to_algebraic(from_sq)}{index_to_algebraic(to_sq)}")
                     promotion_move = chess.Move.from_uci(f"{index_to_algebraic(from_sq)}{index_to_algebraic(to_sq)}q")
-                    if move in board.legal_moves:
+                    if move in board.pseudo_legal_moves:
                         legal_moves.append((move, from_score + to_score))
                         if board.is_castling(move):
                             castling_moves.append((move, from_score + to_score))
-                    elif promotion_move in board.legal_moves:
+                    elif promotion_move in board.pseudo_legal_moves:
                         legal_moves.append((promotion_move, from_score + to_score))
 
         # Check for castling
@@ -405,11 +454,11 @@ class Camera:
             kingside_move = chess.Move.from_uci("e1g1" if turn == chess.WHITE else "e8g8")
             queenside_move = chess.Move.from_uci("e1c1" if turn == chess.WHITE else "e8c8")
 
-            if all(square_scores.get(sq, 0) > 25 for sq in kingside_squares) and kingside_move in board.legal_moves:
+            if all(square_scores.get(sq, 0) > 25 for sq in kingside_squares) and kingside_move in board.pseudo_legal_moves:
                 self.correct_moves += 1
                 self.add_to_history(self.frame, self.previous_frames, self.heatmap.get_array(), self.detailed_heatmap_data)
                 return kingside_move
-            if all(square_scores.get(sq, 0) > 25 for sq in queenside_squares) and queenside_move in board.legal_moves:
+            if all(square_scores.get(sq, 0) > 25 for sq in queenside_squares) and queenside_move in board.pseudo_legal_moves:
                 self.correct_moves += 1
                 self.add_to_history(self.frame, self.previous_frames, self.heatmap.get_array(), self.detailed_heatmap_data)
                 return queenside_move
@@ -513,6 +562,9 @@ class Camera:
             ax.set_title(section.capitalize())
             ax.set_xticks(range(8))
             ax.set_yticks(range(8))
+
+            ax.set_xticklabels(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'])
+            ax.set_yticklabels(['8', '7', '6', '5', '4', '3', '2', '1'])
 
         # Add colorbar
         cb_ax = plt.subplot(gs[:, -1])
