@@ -30,7 +30,7 @@ class Camera:
         self.stability_threshold = 5
         self.stable_frame_count = 0
         self.last_stable_frame = None
-        self.stability_ssim_threshold = 0.90
+        self.stability_ssim_threshold = 0.97
 
         self.sample_board()
 
@@ -146,7 +146,6 @@ class Camera:
             for section, value in section_diffs.items():
                 heatmap_values[section][row][col] = value
 
-
         self.canvas_heatmaps.draw_idle()
 
         self.detailed_heatmap_data = {}
@@ -212,12 +211,7 @@ class Camera:
         options = mp_vision.HandLandmarkerOptions(base_options=base_options, num_hands=1)
         self.hand_detector = mp_vision.HandLandmarker.create_from_options(options)
 
-    def detect_hands(self, color_image, crop_left = 100, crop_right=600, crop_bottom=0, crop_top=500):
-        height, width = color_image.shape[:2]
-
-        color_image = color_image[crop_top:(height - crop_bottom), crop_left:(width - crop_right)]
-        color_image = color_image.astype(np.uint8)
-        
+    def detect_hands(self, color_image):
         cv2.imwrite(f'detect_hand.png', color_image)
         #cv2.imshow(f'detect_hand.png', color_image)
         
@@ -237,66 +231,7 @@ class Camera:
     # BOARD SAMPLING #
     ##################
 
-    def get_processed_frame(self):
-
-        warped_image = None
-        while self.is_active and warped_image is None:
-            frames = self.pipe.wait_for_frames()
-            color_frame = frames.get_color_frame()
-
-            if not color_frame:
-                continue
-                
-            color_image = np.asanyarray(color_frame.get_data())
-
-            if self.detect_hands(color_image):
-                time.sleep(5)
-            else:
-                warped_image = apply_perspective_transform(color_image, self.corners)
-                warped_image = cv2.cvtColor(warped_image, cv2.COLOR_BGR2GRAY)
-
-        return warped_image
-    
-    def get_processed_frame(self):
-            warped_image = None
-            while True:
-                frames = self.pipe.wait_for_frames()
-                color_frame = frames.get_color_frame()
-
-                if not color_frame:
-                    continue
-
-                color_image = np.asanyarray(color_frame.get_data())
-
-                if self.detect_hands(color_image):
-                    self.stable_frame_count = 0  # Reset stability count if hands detected
-                    time.sleep(1)  # Wait before next frame capture
-                    continue
-
-                warped_image = apply_perspective_transform(color_image, self.corners)
-                warped_image = cv2.cvtColor(warped_image, cv2.COLOR_BGR2GRAY)
-
-                if self.last_stable_frame is not None:
-                    # Use SSIM to compare current frame with the last stable frame
-                    similarity = ssim(warped_image, self.last_stable_frame)
-
-                    if similarity > self.stability_ssim_threshold:
-                        self.stable_frame_count += 1
-                        time.sleep(0.15)
-                    else:
-                        print('Frame not stable')
-                        self.stable_frame_count = 0  # Reset count if frames are not similar enough
-    
-                self.last_stable_frame = warped_image
-
-                cv2.imshow('Warped Image', warped_image)
-
-                if self.stable_frame_count >= self.stability_threshold:
-                    break  # Exit loop if stability threshold reached
-
-            return warped_image
-
-    def get_processed_frame(self, use_larger_context=False):
+    def get_processed_frame(self, use_larger_context=True, crop_left = 500, crop_right=600, crop_bottom=100, crop_top=400):
         while True:
             frames = self.pipe.wait_for_frames()
             color_frame = frames.get_color_frame()
@@ -306,16 +241,22 @@ class Camera:
 
             color_image = np.asanyarray(color_frame.get_data())
 
-            if self.detect_hands(color_image):
+            height, width = color_image.shape[:2]
+
+            cropped_image = color_image[crop_top:(height - crop_bottom), crop_left:(width - crop_right)]
+            cropped_image = cropped_image.astype(np.uint8)
+
+            warped_image = apply_perspective_transform(color_image, self.corners)
+
+            if self.detect_hands(cropped_image):
                 self.stable_frame_count = 0  # Reset stability count if hands detected
                 time.sleep(1)  # Wait before next frame capture
                 continue
 
-            warped_image = apply_perspective_transform(color_image, self.corners)
             warped_image_gray = cv2.cvtColor(warped_image, cv2.COLOR_BGR2GRAY)
 
             # Choose the image to use for stability check
-            check_image = color_image if use_larger_context else warped_image_gray
+            check_image =  cv2.cvtColor(cropped_image, cv2.COLOR_BGR2GRAY) if use_larger_context else warped_image_gray
 
             if self.last_stable_frame is not None:
                 # Use SSIM to compare current frame with the last stable frame
@@ -376,13 +317,13 @@ class Camera:
         baseline_squares_list = [divide_into_squares(frame, extended=self.extended) for frame in self.baseline_frames]
         sample_squares_list = [divide_into_squares(frame, extended=self.extended) for frame in self.previous_frames]
 
-        #fig, axs = plt.subplots(8, 8, figsize=(10, 10))
-        #for i, ax in enumerate(axs.flatten()):
-        #    ax.imshow(baseline_squares_list[0][i], cmap='gray')
-        #    ax.axis('off')
-        #    print(i)
-        #plt.tight_layout()
-        #plt.savefig('output.png', dpi=300, bbox_inches='tight')
+        fig, axs = plt.subplots(8, 8, figsize=(10, 10))
+        for i, ax in enumerate(axs.flatten()):
+            ax.imshow(baseline_squares_list[0][i], cmap='gray')
+            ax.axis('off')
+            print(i)
+        plt.tight_layout()
+        plt.savefig('grid_separated.png', dpi=300, bbox_inches='tight')
 
         num_squares = len(baseline_squares_list[0])
 
@@ -454,7 +395,7 @@ class Camera:
         square_diffs.sort(key=lambda x: x[1], reverse=True)
         #return [(idx, avg_diff) for idx, avg_diff in square_diffs if (avg_diff > self.large_threshold)]
 
-        return [(idx, avg_diff) for idx, avg_diff in square_diffs if avg_diff > self.baseline_thresholds['overall'][idx]['estimated_max']]
+        return [(idx, avg_diff) for idx, avg_diff in square_diffs if avg_diff > self.baseline_thresholds['overall'][idx]['estimated_max'] and avg_diff > self.large_threshold ]
 
     def ssim_small(self, squares, detailed_threshold=6):
         new_squares = divide_into_squares(self.frame, extended=self.extended)
@@ -478,7 +419,10 @@ class Camera:
             #    detailed_square_diffs.append((idx, avg_diff, avg_diffs))
 
             center_exceeds_threshold = avg_diffs['center'] > self.baseline_thresholds['sections']['center'][idx]['estimated_max']
-            right_exceeds_threshold = avg_diffs['right'] > self.baseline_thresholds['sections']['right'][idx]['estimated_max']
+            right_exceeds_threshold = avg_diffs['right'] > self.baseline_thresholds['sections']['right'][idx]['median']
+            left_exceeds_threshold = avg_diffs['left'] > self.baseline_thresholds['sections']['left'][idx]['median']
+            top_exceeds_threshold = avg_diffs['top'] > self.baseline_thresholds['sections']['top'][idx]['median']
+            bottom_exceeds_threshold = avg_diffs['bottom'] > self.baseline_thresholds['sections']['bottom'][idx]['median']
 
             # Only append if the avg difference for at least center or right is above their estimated max
             if center_exceeds_threshold and right_exceeds_threshold:
@@ -589,7 +533,7 @@ class Camera:
             return refined_moves[0][0]
         
         # If refined move difference between first and second is higher than 30, return the first move
-        if len(refined_moves) > 1 and refined_moves[0][1] - refined_moves[1][1] > 20:
+        if len(refined_moves) > 1 and refined_moves[0][1] - refined_moves[1][1] > 50:
             return refined_moves[0][0]
 
         # Return the top 5 moves (if more than one) with the highest score

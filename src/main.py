@@ -8,14 +8,14 @@ from camera import Camera
 import queue
 
 # SETUP
-CAMERA = False
-SELECT_CORNERS = False
+CAMERA = True
+SELECT_CORNERS = True
 
-GRIPPER_TEST_MODE = True
+GRIPPER_TEST_MODE = False
 HOST = '10.10.73.239'
 PORT = 30002
 
-LARGE_THRS = 10
+LARGE_THRS = 5
 SMALL_THRS = 6
 
 ENGINE_PATH = r'third_party\stockfish\stockfish-windows-x86-64-avx2.exe'

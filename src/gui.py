@@ -8,7 +8,7 @@ import queue
 import time
 
 class ChessGUI:
-    BOARD_SIZE = 600
+    BOARD_SIZE = 800
 
     def __init__(self):
         self.board = chess.Board()
