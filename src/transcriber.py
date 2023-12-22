@@ -9,6 +9,8 @@ from queue import Queue
 from time import sleep
 from sys import platform
 
+import openai
+
 class Transcriber:
     def __init__(self):
         self.phrase_time = None
@@ -17,12 +19,14 @@ class Transcriber:
         self.recorder.dynamic_energy_threshold = False
 
         self.source = sr.Microphone(sample_rate=16000)
-        self.audio_model = whisper.load_model("base")
+        self.audio_model = whisper.load_model("base.en")
         self.record_timeout = 2
         self.phrase_timeout = 1
         self.running = True
 
         self.transcription = ['']
+
+        self.transfer_queue = Queue()
 
         self.colors = ["blue", "green", "red", "yellow", "purple", "orange"]
         with self.source:
@@ -74,45 +78,53 @@ class Transcriber:
                         self.process_modes(text, mode)
                     else:
                         self.transcription[-1] = text
-                        print(text)
-
-                    # Clear the console to reprint the updated transcription.
-                    for line in self.transcription:
-                        print(line)
-
-                    if self.running:
-                        break
 
                     sleep(0.25)
-
-        print("\n\nTranscription:")
-        for line in self.transcription:
-            print(line)
 
     def process_modes(self, text, mode):
         words = text.split()
         words = [word.lower() for word in words]
-        print(words)
         if mode == "move":
             if "move" in words:
-                # Implement your decode_move_to_uci function here
-                # decode_move_to_uci(words_after_move)
-                print(words)
-                self.running = False
-        else:
-            if any(color in words for color in self.colors):
-                # Find and return the nearest color
-                found_colors = [color for color in self.colors if color in words]
-                if found_colors:
-                    print(f"Detected color(s): {', '.join(found_colors)}")
-                    # You can implement additional processing here
-                    self.running = False
+                print(text)
+                self.transfer_queue.put(text)
+            
+        #else:
+        #    if any(color in words for color in self.colors):
+        #        # Find and return the nearest color
+        #        found_colors = [color for color in self.colors if color in words]
+        #        if found_colors:
+        #            print(f"Detected color(s): {', '.join(found_colors)}")
 
     def stop(self):
         self.running = False
 
     def start(self):
         self.running = True
+
+def generate_text_from_transcription(transcription, board):
+    # Ensure the OPENAI_API_KEY environment variable is set
+    #openai.api_key = os.getenv("OPENAI_API_KEY")
+
+    # Send the transcription to the OpenAI API
+    prompt = f"I have a transcribed move from a chess player, the board is the following:\n{board}\n\nI want you to output only the move in UCI format. Take into account that the transcription is automatic so consider possible misinterpretations. Always return the most probable move in UCI format. If there are two possibilities, return both. Here is the move I want you to transcribe:\n{transcription}\n\nOutput:"
+    print(prompt)
+    try:
+        response = openai.Completion.create(
+            model="text-davinci-003",  
+            prompt=prompt,
+            max_tokens=50  # Adjust max tokens as needed
+        )
+
+        # Extract and process the generated text from the response
+        generated_text = response.get('choices')[0].get('text').strip()
+        possible_moves = generated_text.split(', ')
+
+        return possible_moves
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
 
 if __name__ == "__main__":
     transcriber = Transcriber()

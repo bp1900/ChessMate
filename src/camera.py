@@ -30,7 +30,7 @@ class Camera:
         self.stability_threshold = 5
         self.stable_frame_count = 0
         self.last_stable_frame = None
-        self.stability_ssim_threshold = 0.97
+        self.stability_ssim_threshold = 0.90
 
         self.sample_board()
 
@@ -44,9 +44,7 @@ class Camera:
         self.parent = parent
         self._init_heatmaps()  # Initialize heatmaps
 
-        self.calculate_baseline_thresholds()
-
-
+        self.is_active = True
 
 
     ##################
@@ -240,8 +238,9 @@ class Camera:
     ##################
 
     def get_processed_frame(self):
+
         warped_image = None
-        while warped_image is None:
+        while self.is_active and warped_image is None:
             frames = self.pipe.wait_for_frames()
             color_frame = frames.get_color_frame()
 
@@ -285,14 +284,59 @@ class Camera:
                         self.stable_frame_count += 1
                         time.sleep(0.15)
                     else:
+                        print('Frame not stable')
                         self.stable_frame_count = 0  # Reset count if frames are not similar enough
-
+    
                 self.last_stable_frame = warped_image
+
+                cv2.imshow('Warped Image', warped_image)
 
                 if self.stable_frame_count >= self.stability_threshold:
                     break  # Exit loop if stability threshold reached
 
             return warped_image
+
+    def get_processed_frame(self, use_larger_context=False):
+        while True:
+            frames = self.pipe.wait_for_frames()
+            color_frame = frames.get_color_frame()
+
+            if not color_frame:
+                continue
+
+            color_image = np.asanyarray(color_frame.get_data())
+
+            if self.detect_hands(color_image):
+                self.stable_frame_count = 0  # Reset stability count if hands detected
+                time.sleep(1)  # Wait before next frame capture
+                continue
+
+            warped_image = apply_perspective_transform(color_image, self.corners)
+            warped_image_gray = cv2.cvtColor(warped_image, cv2.COLOR_BGR2GRAY)
+
+            # Choose the image to use for stability check
+            check_image = color_image if use_larger_context else warped_image_gray
+
+            if self.last_stable_frame is not None:
+                # Use SSIM to compare current frame with the last stable frame
+                similarity = ssim(check_image, self.last_stable_frame)
+
+                if similarity > self.stability_ssim_threshold:
+                    self.stable_frame_count += 1
+                    time.sleep(0.15)
+                else:
+                    print('Frame not stable')
+                    self.stable_frame_count = 0  # Reset count if frames are not similar enough
+
+            self.last_stable_frame = check_image
+
+            cv2.imshow('Warped Image', warped_image_gray)
+
+            if self.stable_frame_count >= self.stability_threshold:
+                break  # Exit loop if stability threshold reached
+
+        return warped_image_gray  # Return the grayscale warped image
+
 
     def sample_board(self, max_samples=5, baseline_samples=2):
         sample_number = 0
@@ -320,23 +364,25 @@ class Camera:
                 frames_as_squares[j].append(square)
 
         self.old_squares = frames_as_squares
+        self.calculate_baseline_thresholds()
+
 
 
     def calculate_baseline_thresholds(self):
         print("Computing baseline")
-        self.baseline_thresholds = {'overall': {}, 'sections': {}}
+        self.baseline_thresholds = {'overall': {}, 'sections': {'center': {}, 'left': {}, 'right': {}, 'top': {}, 'bottom': {}}}
 
         # Preprocess to divide frames into squares and sections only once
         baseline_squares_list = [divide_into_squares(frame, extended=self.extended) for frame in self.baseline_frames]
         sample_squares_list = [divide_into_squares(frame, extended=self.extended) for frame in self.previous_frames]
 
-        #fix, axs = plt.subplots(8, 8, figsize=(10, 10))
+        #fig, axs = plt.subplots(8, 8, figsize=(10, 10))
         #for i, ax in enumerate(axs.flatten()):
         #    ax.imshow(baseline_squares_list[0][i], cmap='gray')
         #    ax.axis('off')
         #    print(i)
         #plt.tight_layout()
-        #plt.show()
+        #plt.savefig('output.png', dpi=300, bbox_inches='tight')
 
         num_squares = len(baseline_squares_list[0])
 
@@ -351,24 +397,24 @@ class Camera:
 
                     # Calculate overall SSIM
                     overall_score, _ = ssim(baseline_square, sample_square, full=True)
-                    overall_diffs.append(1 - overall_score)
+                    overall_diffs.append( (1 - overall_score)*100)
 
                     # Calculate section SSIMs
-                    #for section in section_diffs.keys():
-                    #    section_score, _ = ssim(baseline_sections[section], sample_sections[section], full=True)
-                    #    section_diffs[section].append(1 - section_score)
+                    for section in section_diffs.keys():
+                        section_score, _ = ssim(baseline_sections[section], sample_sections[section], full=True)
+                        section_diffs[section].append((1 - section_score)*100)
 
             # Calculate metrics for overall and section differences
             self.baseline_thresholds['overall'][idx] = calculate_threshold_metrics(overall_diffs)
-            #for section in section_diffs:
-            #    self.baseline_thresholds['sections'][section][idx] = calculate_threshold_metrics(section_diffs[section])
+            for section in section_diffs:
+                self.baseline_thresholds['sections'][section][idx] = calculate_threshold_metrics(section_diffs[section])
 
 
-    def get_relevant_squares(self, board, turn):
+    def get_relevant_squares(self, board):
         """Get squares relevant to the current turn."""
         relevant_squares = set()
-        for move in board.pseudo_legal_moves:
-            if board.color_at(move.from_square) == turn:
+        for move in board.legal_moves:
+            if board.color_at(move.from_square) == board.turn:
                 relevant_squares.add(chess_square_to_camera_perspective(move.from_square))
                 relevant_squares.add(chess_square_to_camera_perspective(move.to_square))
 
@@ -378,14 +424,14 @@ class Camera:
     # MOVE DETECTION #
     ##################
 
-    def compare_squares(self, board, turn):
+    def compare_squares(self, board):
         self.frame = self.get_processed_frame()
-        ssim_squares = self.ssim_square(board, turn)
+        ssim_squares = self.ssim_square(board)
         detailed_squares = self.ssim_small(ssim_squares)
         return detailed_squares
 
-    def ssim_square(self, board, turn):
-        relevant_squares = self.get_relevant_squares(board, turn)
+    def ssim_square(self, board):
+        relevant_squares = self.get_relevant_squares(board)
         new_squares = divide_into_squares(self.frame, extended=self.extended)
 
         square_diffs = []
@@ -406,9 +452,9 @@ class Camera:
 
         # Sort and filter based on overall changes
         square_diffs.sort(key=lambda x: x[1], reverse=True)
-        return [(idx, avg_diff) for idx, avg_diff in square_diffs if (avg_diff > self.large_threshold and avg_diff < 90)]
+        #return [(idx, avg_diff) for idx, avg_diff in square_diffs if (avg_diff > self.large_threshold)]
 
-        #return [(idx, avg_diff) for idx, avg_diff in square_diffs if avg_diff > self.baseline_thresholds['overall'][idx]['estimated_max']]
+        return [(idx, avg_diff) for idx, avg_diff in square_diffs if avg_diff > self.baseline_thresholds['overall'][idx]['estimated_max']]
 
     def ssim_small(self, squares, detailed_threshold=6):
         new_squares = divide_into_squares(self.frame, extended=self.extended)
@@ -427,17 +473,24 @@ class Camera:
                         diff = (1 - score) * 100
                         diffs[section] += diff
             avg_diffs = {section: diffs[section] / len(self.old_squares[idx]) for section in diffs}
-            # Only append if the average difference is larger than 7
-            if max(avg_diffs.values()) > self.small_threshold:
+            # Only append if the max difference is larger than the small threshold
+            #if max(avg_diffs.values()) > self.small_threshold:
+            #    detailed_square_diffs.append((idx, avg_diff, avg_diffs))
+
+            center_exceeds_threshold = avg_diffs['center'] > self.baseline_thresholds['sections']['center'][idx]['estimated_max']
+            right_exceeds_threshold = avg_diffs['right'] > self.baseline_thresholds['sections']['right'][idx]['estimated_max']
+
+            # Only append if the avg difference for at least center or right is above their estimated max
+            if center_exceeds_threshold and right_exceeds_threshold:
                 detailed_square_diffs.append((idx, avg_diff, avg_diffs))
 
         self._update_detailed_heatmap(detailed_square_diffs)
 
         return detailed_square_diffs
     
-    def recognize_move(self, board, turn):
+    def recognize_move(self, board):
         # Get the squares that have changed along with their details
-        changed_squares_with_details = self.compare_squares(board, turn)
+        changed_squares_with_details = self.compare_squares(board)
 
         if len(changed_squares_with_details) == 0:
             return None
@@ -474,27 +527,27 @@ class Camera:
                 if from_sq != to_sq:
                     move = chess.Move.from_uci(f"{index_to_algebraic(from_sq)}{index_to_algebraic(to_sq)}")
                     promotion_move = chess.Move.from_uci(f"{index_to_algebraic(from_sq)}{index_to_algebraic(to_sq)}q")
-                    if move in board.pseudo_legal_moves:
+                    if move in board.legal_moves:
                         legal_moves.append((move, from_score + to_score))
                         if board.is_castling(move):
                             castling_moves.append((move, from_score + to_score))
-                    elif promotion_move in board.pseudo_legal_moves:
+                    elif promotion_move in board.legal_moves:
                         legal_moves.append((promotion_move, from_score + to_score))
 
         # Check for castling
-        if board.has_castling_rights(turn):
+        if board.has_castling_rights(board.turn):
             square_scores = {idx: sum(section_diffs.values()) for idx, _, section_diffs in changed_squares_with_details}
-            kingside_squares = [algebraic_to_index('e1'), algebraic_to_index('f1'), algebraic_to_index('g1'), algebraic_to_index('h1') ] if turn == chess.WHITE else [algebraic_to_index('e8'), algebraic_to_index('f8'), algebraic_to_index('g8'), algebraic_to_index('h8') ]
-            queenside_squares = [algebraic_to_index('e1'), algebraic_to_index('d1'), algebraic_to_index('c1'), algebraic_to_index('a1')] if turn == chess.WHITE else [algebraic_to_index('e8'), algebraic_to_index('d8'), algebraic_to_index('c8'), algebraic_to_index('a8')]
+            kingside_squares = [algebraic_to_index('e1'), algebraic_to_index('f1'), algebraic_to_index('g1'), algebraic_to_index('h1') ] if board.turn == chess.WHITE else [algebraic_to_index('e8'), algebraic_to_index('f8'), algebraic_to_index('g8'), algebraic_to_index('h8') ]
+            queenside_squares = [algebraic_to_index('e1'), algebraic_to_index('d1'), algebraic_to_index('c1'), algebraic_to_index('a1')] if board.turn == chess.WHITE else [algebraic_to_index('e8'), algebraic_to_index('d8'), algebraic_to_index('c8'), algebraic_to_index('a8')]
             
-            kingside_move = chess.Move.from_uci("e1g1" if turn == chess.WHITE else "e8g8")
-            queenside_move = chess.Move.from_uci("e1c1" if turn == chess.WHITE else "e8c8")
+            kingside_move = chess.Move.from_uci("e1g1" if board.turn == chess.WHITE else "e8g8")
+            queenside_move = chess.Move.from_uci("e1c1" if board.turn == chess.WHITE else "e8c8")
 
-            if all(square_scores.get(sq, 0) > 25 for sq in kingside_squares) and kingside_move in board.pseudo_legal_moves:
+            if all(square_scores.get(sq, 0) > 25 for sq in kingside_squares) and kingside_move in board.legal_moves:
                 self.correct_moves += 1
                 self.add_to_history(self.frame, self.previous_frames, self.heatmap.get_array(), self.detailed_heatmap_data)
                 return kingside_move
-            if all(square_scores.get(sq, 0) > 25 for sq in queenside_squares) and queenside_move in board.pseudo_legal_moves:
+            if all(square_scores.get(sq, 0) > 25 for sq in queenside_squares) and queenside_move in board.legal_moves:
                 self.correct_moves += 1
                 self.add_to_history(self.frame, self.previous_frames, self.heatmap.get_array(), self.detailed_heatmap_data)
                 return queenside_move
@@ -505,6 +558,30 @@ class Camera:
         if len(refined_moves) == 0:
             return None
         
+        if True:
+            # Save the movement square and split just for visualization
+            from_square_idx = refined_moves[0][0].from_square
+            to_square_idx = refined_moves[0][0].to_square
+
+            # Save the 'from' square image
+            from_square_image = self.old_squares[from_square_idx][-1]
+            cv2.imwrite('movement_from_square.png', from_square_image)
+
+            # Save the 'to' square image
+            to_square_image = self.old_squares[to_square_idx][-1]
+            cv2.imwrite('movement_to_square.png', to_square_image)
+
+            # Save the split sections of the 'from' square
+            from_square_sections = split_into_sections(from_square_image)
+            for section, img in from_square_sections.items():
+                cv2.imwrite(f'movement_from_{section}.png', img)
+
+            # Save the split sections of the 'to' square
+            to_square_sections = split_into_sections(to_square_image)
+            for section, img in to_square_sections.items():
+                cv2.imwrite(f'movement_to_{section}.png', img)
+
+        
         self.correct_moves += 1
         self.add_to_history(self.frame, self.previous_frames, self.heatmap.get_array(), self.detailed_heatmap_data)
 
@@ -512,7 +589,7 @@ class Camera:
             return refined_moves[0][0]
         
         # If refined move difference between first and second is higher than 30, return the first move
-        if len(refined_moves) > 1 and refined_moves[0][1] - refined_moves[1][1] > 30:
+        if len(refined_moves) > 1 and refined_moves[0][1] - refined_moves[1][1] > 20:
             return refined_moves[0][0]
 
         # Return the top 5 moves (if more than one) with the highest score
@@ -521,6 +598,12 @@ class Camera:
     ##################
     # GETTER/SETTERS #
     ##################
+
+    def pause_camera(self):
+        self.is_active = False
+
+    def resume_camera(self):
+        self.is_active = True
 
     def get_large_threshold(self):
         return self.large_threshold
@@ -571,9 +654,8 @@ class Camera:
             self.save_combined_heatmap(os.path.join(wrong_move_folder, "combined_heatmap.png"), main_heatmap_data, detailed_heatmap_data)
 
             # Update wrong moves count
-            self.wrong_moves += 1
-            self.correct_moves -= 1
-        
+        self.wrong_moves += 1
+        self.correct_moves -= 1
         self.print_stats()
 
     def save_combined_heatmap(self, filename, main_heatmap_data, detailed_heatmap_data):

@@ -8,10 +8,10 @@ from camera import Camera
 import queue
 
 # SETUP
-CAMERA = True
-SELECT_CORNERS = True
+CAMERA = False
+SELECT_CORNERS = False
 
-GRIPPER_TEST_MODE = False
+GRIPPER_TEST_MODE = True
 HOST = '10.10.73.239'
 PORT = 30002
 
@@ -82,10 +82,15 @@ def main():
     mode_frame.pack(pady=20)
 
     # Add buttons for game mode selection
-    create_button(mode_frame, "Human vs Human", lambda: launch_game_mode(mode_selection_window, "human-human"), large_font, tk.TOP, 10, 5)
-    create_button(mode_frame, "Human (White) vs Engine", lambda: launch_game_mode(mode_selection_window, "human-engine", chess.WHITE), large_font, tk.TOP, 10, 5)
-    create_button(mode_frame, "Human (Black) vs Engine", lambda: launch_game_mode(mode_selection_window, "human-engine", chess.BLACK), large_font, tk.TOP, 10, 5)
-    create_button(mode_frame, "Engine vs Engine", lambda: launch_game_mode(mode_selection_window, "engine-engine"), large_font, tk.TOP, 10, 5)
+    create_button(mode_frame, "👤 vs. 👤", lambda: launch_game_mode(mode_selection_window, "human-human"), large_font, tk.TOP, 10, 5)
+    create_button(mode_frame, "👤 (⚪) vs. 🖥️", lambda: launch_game_mode(mode_selection_window, "human-engine", chess.WHITE), large_font, tk.TOP, 10, 5)
+    create_button(mode_frame, "👤 (⚫) vs. 🖥️", lambda: launch_game_mode(mode_selection_window, "human-engine", chess.BLACK), large_font, tk.TOP, 10, 5)
+    create_button(mode_frame, "🖥️ vs. 🖥️", lambda: launch_game_mode(mode_selection_window, "engine-engine"), large_font, tk.TOP, 10, 5)
+
+    #create_button(mode_frame, "Human vs Human", lambda: launch_game_mode(mode_selection_window, "human-human"), large_font, tk.TOP, 10, 5)
+    #create_button(mode_frame, "Human (White) vs Engine", lambda: launch_game_mode(mode_selection_window, "human-engine", chess.WHITE), large_font, tk.TOP, 10, 5)
+    #create_button(mode_frame, "Human (Black) vs Engine", lambda: launch_game_mode(mode_selection_window, "human-engine", chess.BLACK), large_font, tk.TOP, 10, 5)
+    #create_button(mode_frame, "Engine vs Engine", lambda: launch_game_mode(mode_selection_window, "engine-engine"), large_font, tk.TOP, 10, 5)
 
     # Start the mode selection window
     mode_selection_window.mainloop()

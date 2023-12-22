@@ -1,6 +1,21 @@
+- Video: 
+    - self-play robots
+    - Movement detection (castling, moves, capture pieces)
+    - Match
+
+- Shots:
+    - Detect hand
+    - Point Select
+    - Wrong move (when correct -> saves heatmap, wrapped image)
+    - Plot from calculate_baseline_thresholds (64 squares)
+    - 
+
+- Pictures:
+    - Metal Piece
+    - 3D + camera
+    - Metal + Camera
+    - Chessboard
+    - Final composition
+
 - Test Voice with USB mic. 
     python .\src\transcriber.py
-- Test Camera with event driven module
-- Test baseline comparision
-- Test heatmap
-- Test wrong move

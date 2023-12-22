@@ -50,12 +50,12 @@ class ChessGUI:
 
 
     def handle_wrong_move(self):
-        # Show a confirmation dialog
-        if messagebox.askyesno("Confirm Action", "Are you sure you want to revert the last move? If yes, please modify the engine move and then correct your LAST movement on the Interface"):
-            # Allow the user to correct a wrong move
-            self.controller.handle_wrong_move()
-            self.in_correction_mode = True
-            self.wrong_move_button.config(state="disabled")  # Disable the button
+        self.controller.camera.pause_camera()
+        self.controller.handle_wrong_move()
+        self.in_correction_mode = True
+
+        messagebox.showinfo("Confirm Action", "Please put the piece the engine move did to its previous position and then correct your LAST movement on the Interface.")
+        self.wrong_move_button.config(state="disabled")  # Disable the button
 
     def display_possible_moves(self, moves):
         self.possible_moves_displayed = True
@@ -238,6 +238,8 @@ class ChessGUI:
             self.in_correction_mode = False
             self.controller.exit_correction_mode()
             self.wrong_move_button.config(state="normal")
+            self.controller.camera.resume_camera()
+
 
     def update_game_status(self):
         game_status = self.game_status_text()

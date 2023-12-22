@@ -4,7 +4,9 @@ import time
 import threading
 from camera import Camera
 import tkinter as tk
-from transcriber import Transcriber
+from transcriber import Transcriber, generate_text_from_transcription
+import subprocess
+import os
 
 #################
 # CHESS CONTROL #
@@ -60,7 +62,7 @@ class ChessController(threading.Thread):
                 self.gui.root.after(100, self.async_engine_move)
 
             if self.robot_movement:
-                
+
                 if captured_piece is not None and captured_piece.piece_type == chess.KING:
                     self.send_move_robot(move, is_checkmate=True, return_initial_position=False, is_pawn=current_is_pawn)
 
@@ -95,11 +97,11 @@ class ChessController(threading.Thread):
             if self.camera and not self.in_correction_mode:
                 if self.game_mode == "human-human":
                     self.camera.sample_board()
+                    self.camera.print_stats()
+ 
                 elif self.game_mode == "human-engine":
                     self.camera.sample_board()
-
-                # Get stats
-                self.camera.print_stats()
+                    self.camera.print_stats()
 
         else:
             print("Illegal move!")
@@ -148,14 +150,7 @@ class ChessController(threading.Thread):
     ##########################
 
     def is_move_legal(self, move):
-        """Check if a move is legal. Allow moves even in check."""
-        if self.board.is_check():
-            # If the king is in check, allow all moves that are pseudo-legal
-            # Pseudo-legal moves include moves that don't necessarily get the king out of check
-            return move in self.board.pseudo_legal_moves
-        else:
-            # If the king is not in check, use standard legal move check
-            return move in self.board.legal_moves
+        return move in self.board.legal_moves
     
     def is_pawn_promotion_candidate(self, move):
         piece = self.board.piece_at(move.from_square)
@@ -181,12 +176,9 @@ class ChessController(threading.Thread):
             self.camera.sample_board()
 
     def handle_wrong_move(self):
-        # Determine whose turn it is currently
-        current_turn = self.board.turn
-
         # If it's the robot's (engine's) turn, pop only the last move
         # If it's the human's turn again, pop two moves (human's and engine's)
-        num_moves_to_pop = 1 if current_turn != self.player_color else 2
+        num_moves_to_pop = 1 if self.board.turn != self.player_color else 2
 
         for _ in range(num_moves_to_pop):
             self.board.pop()
@@ -254,7 +246,6 @@ class ChessController(threading.Thread):
             self.robot.capture_piece(move, is_checkmate, is_pawn=is_pawn)
 
 '''
-
 class DetectionController(threading.Thread):
     def __init__(self, chess_controller, camera, command_queue, mode):
         threading.Thread.__init__(self)
@@ -263,79 +254,70 @@ class DetectionController(threading.Thread):
         self.command_queue = command_queue
         self.mode = mode
         self.camera = camera
-        #self.transcriber = Transcriber()
-        self.transcriber_active = False
-        self.camera_thread = None
-        self.camera_active = False
-        
+        self.transcriber = Transcriber()
+        self.transcriber_thread = threading.Thread(target=self.transcriber.transcribe, args=("move",))
+
     def run(self):
-        # Do not run detection for engine-engine mode
+        self.transcriber_thread.start()  # Start the transcription thread
+        time.sleep(0.5)
         if self.mode == "engine-engine":
-            time.sleep(0.2)
             self.chess_controller.start_game_loop()
-            return
+            return  # Do not run detection for engine-engine mode
         elif self.mode == "human-engine" and self.chess_controller.player_color == chess.BLACK:
-            time.sleep(0.2)
             self.chess_controller.start_game_loop()
             return
 
         while True:
             # Check for camera move or other inputs
             if self.should_detect():
-                if False and not self.transcriber_active:
-                    self.start_transcriber_thread()
+                if self.camera:
+                    move = self.camera.recognize_move(self.chess_controller.board)
+                    if move:
+                        # Put the move in the queue instead of directly handling it
+                        self.command_queue.put(move)
 
-                if not self.camera_active:
-                    self.start_camera_thread()
-            else:
-                if False and self.transcriber_active:
-                    self.stop_transcriber_thread()
-                if self.camera_active:
-                    self.stop_camera_thread()
+                transcribe = self.check_transcription()
+                if transcribe:
+                    generate_text_from_transcription(transcribe, self.chess_controller.board)
+                    #self.command_queue.put(transcribe.strip())
             time.sleep(1)
 
+    def check_transcription(self):
+        if not self.transcriber.data_queue.empty():
+            transcription = self.transcriber.data_queue.get()
+            print(f"Transcription: {transcription}")  # Debugging
+            # Process the transcription and get the possible moves
+            possible_moves = generate_text_from_transcription(transcription, self.chess_controller.board.fen())
+            if possible_moves:
+                for move in possible_moves:
+                    # Put each possible move in the command queue
+                    self.command_queue.put(move)
+
+
+    def stop_transcriber(self):
+        self.transcriber.stop()
+        self.transcriber_thread.join()  # Wait for the transcription thread to finish
+
+    def start_detection_loop(self):
+        # Start the detection loop in a separate thread
+        detection_loop_thread = threading.Thread(target=self.run)
+        detection_loop_thread.start()
+
     def should_detect(self):
-        # Detect only on the human player's turn
+        if self.chess_controller.board.is_game_over():
+            return False
+
+        if self.chess_controller.in_correction_mode:
+            return False
+
         if self.mode == "human-human":
             return True
         elif self.mode == "human-engine":
             return self.chess_controller.board.turn == self.player_color
         return False
-
-    def start_transcriber_thread(self):
-        # Check if Transcriber is already running
-        if not self.transcriber_active:
-            # Create and start the Transcriber thread
-            self.transcriber_thread = threading.Thread(target=self.transcriber.transcribe, args=("move",))
-            self.transcriber_thread.start()
-            self.transcriber_active = True
-
-    def stop_transcriber_thread(self):
-        if self.transcriber_active:
-            self.transcriber.stop()
-            # Ensure that the thread finishes execution
-            self.transcriber_thread.join()
-            self.transcriber_active = False
-
-    def start_camera_thread(self):
-        if self.camera and not self.camera_thread:
-            self.camera_thread = threading.Thread(target=self.process_camera)
-            self.camera_thread.start()
-            self.camera_active = True
-
-    def process_camera(self):
-        move = self.camera.recognize_move(self.chess_controller.board, self.chess_controller.board.turn)
-        if move:
-            self.command_queue.put(move)
-        self.camera_active = False
-        self.camera_thread = None
-
-    def stop_camera_thread(self):
-        if self.camera_thread:
-            self.camera_active = False
-            self.camera_thread = None
-
+    
     def start_detection_loop(self):
+        # Start the detection loop in a separate thread
         detection_loop_thread = threading.Thread(target=self.run)
         detection_loop_thread.start()
 
@@ -362,20 +344,25 @@ class DetectionController(threading.Thread):
             # Check for camera move or other inputs
             if self.should_detect():
                 if self.camera:
-                    move = self.camera.recognize_move(self.chess_controller.board, self.chess_controller.board.turn)
+                    move = self.camera.recognize_move(self.chess_controller.board)
                     if move:
                         # Put the move in the queue instead of directly handling it
                         self.command_queue.put(move)
             time.sleep(1)
 
     def should_detect(self):
-        # Detect only on the human player's turn
+        if self.chess_controller.board.is_game_over():
+            return False
+
+        if self.chess_controller.in_correction_mode:
+            return False
+
         if self.mode == "human-human":
             return True
         elif self.mode == "human-engine":
             return self.chess_controller.board.turn == self.player_color
         return False
-
+    
     def start_detection_loop(self):
         # Start the detection loop in a separate thread
         detection_loop_thread = threading.Thread(target=self.run)
