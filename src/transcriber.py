@@ -149,7 +149,8 @@ def generate_text_from_transcription(transcription, board):
         return []
     
     # Ensure the OPENAI_API_KEY environment variable is set
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = os.getenv("OPENAI_API_KEY")  # Ensure you have this set in your environment variables
+    client = OpenAI(api_key=api_key)
 
     # Send the transcription to the OpenAI API
     prompt = f"""
