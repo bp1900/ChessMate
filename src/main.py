@@ -2,16 +2,18 @@ import chess
 import tkinter as tk
 from gui import ChessGUI
 from robot.src.robot import Robot
-from controller import ChessController, DetectionController
+from controller import ChessController, DetectionController, DetectionControllerAudio
 from chessEngine import ChessEngine
 from camera import Camera
 import queue
 
 # SETUP
-CAMERA = True
+CAMERA = False
 SELECT_CORNERS = True
 
-GRIPPER_TEST_MODE = False
+MICROPHONE = False # THIS HASNT BEEN TESTED ON THE LAB
+
+GRIPPER_TEST_MODE = True
 HOST = '10.10.73.239'
 PORT = 30002
 
@@ -57,7 +59,11 @@ def launch_game_mode(mode_selection_window, mode, color=None):
     command_queue = queue.Queue()
 
     # Initialize and start the DetectionController
-    detection_controller = DetectionController(controller, camera=camera, command_queue=command_queue, mode=mode)
+    if MICROPHONE:
+        # THIS HASNT BEEN TESTED ON THE LAB
+        detection_controller = DetectionControllerAudio(controller, camera=camera, command_queue=command_queue, mode=mode)
+    else:
+        detection_controller = DetectionController(controller, camera=camera, command_queue=command_queue, mode=mode)
     detection_controller.start_detection_loop()
 
     # Start the main GUI with the command queue

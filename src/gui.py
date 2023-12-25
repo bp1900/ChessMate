@@ -261,7 +261,7 @@ class ChessGUI:
 
     def run(self, command_queue):
         # Schedule the first check of the command queue
-        self.root.after(100, self.check_command_queue, command_queue)
+        self.root.after(10, self.check_command_queue, command_queue)
         self.root.mainloop()
 
     def check_command_queue(self, command_queue):
@@ -276,7 +276,7 @@ class ChessGUI:
             pass
         finally:
             # Schedule the next check of the command queue
-            self.root.after(100, self.check_command_queue, command_queue)
+            self.root.after(10, self.check_command_queue, command_queue)
 
     def process_command(self, command):
         # Process the command here (handle a move)

@@ -245,59 +245,74 @@ class ChessController(threading.Thread):
         if not self.GRIPPER_TEST_MODE:
             self.robot.capture_piece(move, is_checkmate, is_pawn=is_pawn)
 
-'''
-class DetectionController(threading.Thread):
+class DetectionControllerAudio(threading.Thread):
     def __init__(self, chess_controller, camera, command_queue, mode):
-        threading.Thread.__init__(self)
+        super().__init__()
         self.chess_controller = chess_controller
-        self.player_color = chess_controller.player_color
         self.command_queue = command_queue
         self.mode = mode
+
+        # Camera related
         self.camera = camera
+        self.camera_thread = threading.Thread(target=self.camera_loop, args=())
+
+        # Transcriber related
         self.transcriber = Transcriber()
         self.transcriber_thread = threading.Thread(target=self.transcriber.transcribe, args=("move",))
+        self.audio_thread = threading.Thread(target=self.audio_loop, args=())
 
     def run(self):
-        self.transcriber_thread.start()  # Start the transcription thread
-        time.sleep(0.5)
-        if self.mode == "engine-engine":
-            self.chess_controller.start_game_loop()
-            return  # Do not run detection for engine-engine mode
-        elif self.mode == "human-engine" and self.chess_controller.player_color == chess.BLACK:
-            self.chess_controller.start_game_loop()
-            return
+        # Start both threads
+        self.camera_thread.start()
+        self.transcriber_thread.start()
+        self.audio_thread.start()
 
+        # Wait for both threads to finish 
+        self.camera_thread.join()
+        self.transcriber_thread.join()
+        self.audio_thread.join()
+
+    def camera_loop(self):
         while True:
-            # Check for camera move or other inputs
-            if self.should_detect():
-                if self.camera:
-                    move = self.camera.recognize_move(self.chess_controller.board)
-                    if move:
-                        # Put the move in the queue instead of directly handling it
-                        self.command_queue.put(move)
+            if self.should_detect() and self.camera:
+                move = self.camera.recognize_move(self.chess_controller.board)
+                if move:
+                    self.command_queue.put(move)
+            time.sleep(1)  # Modify as needed
 
-                transcribe = self.check_transcription()
-                if transcribe:
-                    generate_text_from_transcription(transcribe, self.chess_controller.board)
-                    #self.command_queue.put(transcribe.strip())
-            time.sleep(1)
+    def audio_loop(self):
+        while True:
+            if self.should_detect() and self.transcriber:
+                self.check_transcription()
+            time.sleep(1)  # Adjust as needed
 
     def check_transcription(self):
-        if not self.transcriber.data_queue.empty():
-            transcription = self.transcriber.data_queue.get()
+        if not self.transcriber.transfer_queue.empty():
+            transcription = self.transcriber.transfer_queue.get()
             print(f"Transcription: {transcription}")  # Debugging
-            # Process the transcription and get the possible moves
             possible_moves = generate_text_from_transcription(transcription, self.chess_controller.board.fen())
-            if possible_moves:
-                for move in possible_moves:
-                    # Put each possible move in the command queue
-                    self.command_queue.put(move)
+            # Check if possible moves are legal on the board
+            if isinstance(possible_moves, list):
+                if len(possible_moves) == 1:
+                    if self.chess_controller.is_move_legal(possible_moves[0]):
+                        self.chess_controller.robot_movement = True
+                        self.command_queue.put(possible_moves[0])
+                        return
+                else:
+                    subset_moves = []
+                    for move in possible_moves:
+                        if self.chess_controller.is_move_legal(move):
+                            self.chess_controller.robot_movement = True # Make the robot arm move
+                            subset_moves.append(move)
 
-
-    def stop_transcriber(self):
-        self.transcriber.stop()
-        self.transcriber_thread.join()  # Wait for the transcription thread to finish
-
+                    if len(subset_moves) == 1:
+                        self.command_queue.put(subset_moves[0])
+                        return
+                    elif len(subset_moves) > 1:
+                        self.chess_controller.gui.display_possible_moves(subset_moves)
+                        return
+                    
+                    
     def start_detection_loop(self):
         # Start the detection loop in a separate thread
         detection_loop_thread = threading.Thread(target=self.run)
@@ -316,12 +331,6 @@ class DetectionController(threading.Thread):
             return self.chess_controller.board.turn == self.player_color
         return False
     
-    def start_detection_loop(self):
-        # Start the detection loop in a separate thread
-        detection_loop_thread = threading.Thread(target=self.run)
-        detection_loop_thread.start()
-
-'''
 class DetectionController(threading.Thread):
     def __init__(self, chess_controller, camera, command_queue, mode):
         threading.Thread.__init__(self)
