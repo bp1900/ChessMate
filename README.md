@@ -1,6 +1,7 @@
 <h1>
+ChessMate: Robotic Chess Companion
   <img src="./img/logo.png" alt="Logo" width="50" height="50">
-  ChessMate: Robotic Chess Companion
+  
 </h1>
 
 ChessMate is an advanced robotic chess companion that brings the classic game of chess into the modern era with interactive play against a computer or a physical robotic arm. Whether you're practicing against sophisticated AI or just playing for fun against friends, ChessMate offers an engaging chess experience with multiple modes and adaptive control systems.
@@ -10,7 +11,7 @@ ChessMate is an advanced robotic chess companion that brings the classic game of
 - **Multiple Game Modes**: Choose from Human vs. Human, Human vs. Engine, or Engine vs. Engine.
 - **Robotic Arm Integration**: Experience the physical movement of chess pieces with an automated robotic arm.
 - **Advanced Engine Options**: Play against renowned chess engines like Stockfish and Leela Zero.
-- **Audio & Visual Interaction**: Engage with the game using intuitive audio commands or through a visual interface.
+- **Audio & Visual Interaction**: Engage with the game using intuitive audio commands or through a real world chessboard.
 - **Customizable Engine Parameters**: Adjust the difficulty and behavior of the chess engines.
 
 ## Getting Started
