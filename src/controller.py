@@ -126,8 +126,7 @@ class ChessController(threading.Thread):
 
         self.robot_movement = True
         def compute_and_handle_move():
-            if self.game_mode == "human-engine" and self.player_color == self.board.turn:
-                print("Engine's turn 2")
+            if self.game_mode == "human-engine" and self.player_color != self.board.turn:
                 engine_move = self.engine.compute_move(self.board)
             elif self.board.turn == chess.WHITE:
                 engine_move = self.engine.compute_move(self.board)

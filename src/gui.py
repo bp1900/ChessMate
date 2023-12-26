@@ -14,6 +14,7 @@ class ChessGUI:
         self.board = chess.Board()
         self.possible_moves_displayed = False
         self.root = tk.Tk()
+        self.root.title("Chess Game")
         self.canvas = tk.Canvas(self.root, width=self.BOARD_SIZE, height=self.BOARD_SIZE)
         self.canvas.pack()
         self.turn_label = tk.Label(self.root, text=self.current_turn_text(), font=("Verdana", 16))

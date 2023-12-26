@@ -7,6 +7,7 @@ class ChessEngine:
         self.engine_path = engine_path
         self.time_limit = time_limit
 
+
     def compute_move(self, board):
         with chess.engine.SimpleEngine.popen_uci(self.engine_path, stderr=subprocess.DEVNULL) as engine:
             result = engine.play(board, chess.engine.Limit(time=self.time_limit))

@@ -105,34 +105,38 @@ def launch_intermediate_window(mode_selection_window, mode, advanced_var, color=
     text = "Choose Engine for White:" if mode == 'engine-engine' else "Choose Engine:"
     tk.Label(engine_config_frame, text=text, font=large_font).pack()
     engine1_var = tk.StringVar(value="Stockfish")  # default value
-    engine1_dropdown = ttk.Combobox(engine_config_frame, textvariable=engine1_var, values=list(ENGINE_PATHS.keys()), state="readonly")
+    engine1_dropdown = ttk.Combobox(engine_config_frame, textvariable=engine1_var, values=list(ENGINE_PATHS.keys()), state="readonly", font=large_font)
     engine1_dropdown.pack(fill=tk.X, padx=10)
 
-    # Time for White (or the only time in human vs. engine)
-    text = "Set Time for White Engine (seconds):" if mode == 'engine-engine' else "Set time for Engine (seconds):"
-    tk.Label(engine_config_frame, text=text, font=large_font).pack()
-    time_engine1_entry = tk.Entry(engine_config_frame, font=large_font)
-    time_engine1_entry.insert(0, "2")  # default value
-    time_engine1_entry.pack(fill=tk.X, padx=10)
+    tk.Label(engine_config_frame, text="Max seconds per turn for White:", font=large_font).pack()
+    time_engine1_scale = tk.Scale(engine_config_frame, from_=0.01, to=10.0, resolution=0.01, orient=tk.HORIZONTAL)
+    time_engine1_scale.set(2.0)  # default value
+    time_engine1_scale.pack(fill=tk.X, padx=10)
 
-    # If engine vs. engine, provide options for Black as well
+    # Conditional GUI elements for engine-engine mode
     if mode == "engine-engine":
+        # Separator or title for Black Engine settings
+        ttk.Separator(engine_config_frame).pack(fill='x', padx=10, pady=5)
+        # Settings for Black Engine
         tk.Label(engine_config_frame, text="Choose Engine for Black:", font=large_font).pack()
         engine2_var = tk.StringVar(value="Leela Zero")  # default value
-        engine2_dropdown = ttk.Combobox(engine_config_frame, textvariable=engine2_var, values=list(ENGINE_PATHS.keys()), state="readonly")
+        engine2_dropdown = ttk.Combobox(engine_config_frame, textvariable=engine2_var, values=list(ENGINE_PATHS.keys()), state="readonly", font=large_font)
         engine2_dropdown.pack(fill=tk.X, padx=10)
 
-        tk.Label(engine_config_frame, text="Set Time for Black Engine (seconds):", font=large_font).pack()
-        time_engine2_entry = tk.Entry(engine_config_frame, font=large_font)
-        time_engine2_entry.insert(0, "0.01")  # default value
-        time_engine2_entry.pack(fill=tk.X, padx=10)
+        tk.Label(engine_config_frame, text="Max seconds per turn for Black:", font=large_font).pack()
+        time_engine2_scale = tk.Scale(engine_config_frame, from_=0.01, to=10.0, resolution=0.01, orient=tk.HORIZONTAL)
+        time_engine2_scale.set(0.01)  # default value
+        time_engine2_scale.pack(fill=tk.X, padx=10)
 
     # Button to confirm selection and launch the game mode
     confirm_button_text = "Play Against Engine" if color else "Play Engine vs. Engine"
+
+    ttk.Separator(engine_config_frame).pack(fill='x', padx=10, pady=5)
+
     confirm_button = tk.Button(engine_config_frame, text=confirm_button_text, height=2, width=20, font=large_font,
                                command=lambda: launch_game_mode(engine_selection_window, mode, color, 
-                                                                engine1_var.get(), engine2_var.get() if mode == "engine-engine" else "Leela Zero", 
-                                                                time_engine1_entry.get(), time_engine2_entry.get() if mode == "engine-engine" else "0.01"))
+                                                                engine1=engine1_var.get(), engine2=engine2_var.get() if mode == "engine-engine" else "Leela Zero", 
+                                                                time_engine1=time_engine1_scale.get(), time_engine2=time_engine2_scale.get() if mode == "engine-engine" else "0.01"))
     confirm_button.pack(pady=10)
 
     engine_selection_window.mainloop()
