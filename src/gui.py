@@ -232,6 +232,7 @@ class ChessGUI:
         self.selected_piece = None
         self.highlight_square = None
 
+        #self.display_possible_moves([chess.Move.from_uci('f2f3'), chess.Move.from_uci('g1f3'),chess.Move.from_uci('f2f4'),chess.Move.from_uci('e2e3'),chess.Move.from_uci('g2g3')])
         self.controller.handle_move(move)
 
         if self.in_correction_mode:
@@ -255,7 +256,7 @@ class ChessGUI:
         self.forfeit = False
         self.display_board()
         self.turn_label.config(text=self.current_turn_text())
-        self.wrong_move_button.config(state="disabled")  # Disable the 'Wrong Move' button on reset
+        #self.wrong_move_button.config(state="disabled")  # Disable the 'Wrong Move' button on reset
 
         self.controller.start_game_loop()
 

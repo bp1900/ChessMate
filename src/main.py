@@ -1,5 +1,6 @@
 import chess
 import tkinter as tk
+from tkinter import ttk
 from gui import ChessGUI
 from robot.src.robot import Robot
 from controller import ChessController, DetectionController, DetectionControllerAudio
@@ -9,7 +10,7 @@ import queue
 
 # SETUP
 CAMERA = False
-SELECT_CORNERS = True
+SELECT_CORNERS = True # Select the corners of the chessboard
 
 MICROPHONE = False # THIS HASNT BEEN TESTED ON THE LAB
 
@@ -20,14 +21,24 @@ PORT = 30002
 LARGE_THRS = 5
 SMALL_THRS = 6
 
-ENGINE_PATH = r'third_party\stockfish\stockfish-windows-x86-64-avx2.exe'
-TIME_ENGINE = 2
-ENGINE2_PATH = r'third_party\lc0\lc0.exe'
-TIME_ENGINE2 = 0.01
+# Global Variables for Engine Paths and Times
+ENGINE_PATHS = {
+    "Stockfish": r'third_party\stockfish\stockfish-windows-x86-64-avx2.exe',
+    "Leela Zero": r'third_party\lc0\lc0.exe'
+}
+ENGINE_TIMES = {"Stockfish": 2, "Leela Zero": 0.01}
 
-def launch_game_mode(mode_selection_window, mode, color=None):
+def launch_game_mode(mode_selection_window, mode, color=None, engine1="Stockfish", engine2="Leela Zero", time_engine1=2, time_engine2=0.01):
     # Close the mode selection window
     mode_selection_window.destroy()
+
+    # Extract the paths from the global ENGINE_PATHS dictionary
+    engine_path = ENGINE_PATHS[engine1]
+    engine2_path = ENGINE_PATHS[engine2]
+
+    # Convert time values to floats
+    time_engine = float(time_engine1)
+    time_engine2 = float(time_engine2)
 
     # Create the main GUI
     gui = ChessGUI()
@@ -35,8 +46,8 @@ def launch_game_mode(mode_selection_window, mode, color=None):
     # Create the Robot controller
     robot = Robot(host=HOST, port=PORT, gripper_test_mode=GRIPPER_TEST_MODE)
 
-    engine = ChessEngine(engine_path=ENGINE_PATH, time_limit=TIME_ENGINE)
-    engine2 = ChessEngine(engine_path=ENGINE2_PATH, time_limit=TIME_ENGINE2)
+    engine = ChessEngine(engine_path=engine_path, time_limit=time_engine)
+    engine2 = ChessEngine(engine_path=engine2_path, time_limit=time_engine2)
 
     if CAMERA and mode != "engine-engine":
         # Create a frame for the heatmap
@@ -69,6 +80,63 @@ def launch_game_mode(mode_selection_window, mode, color=None):
     # Start the main GUI with the command queue
     gui.run(command_queue)
 
+def launch_intermediate_window(mode_selection_window, mode, advanced_var, color=None):
+
+    if not advanced_var.get():
+        # Launch the game mode with default engine parameters
+        launch_game_mode(mode_selection_window, mode, color)
+        return
+    else:
+        # Close the initial mode selection window
+        mode_selection_window.destroy()
+
+    # Create a new window for engine selection
+    engine_selection_window = tk.Tk()
+    engine_selection_window.title("Select Engine Configuration")
+
+    # Font configuration
+    large_font = ('Verdana', 20)
+
+    # Frame for engine configuration
+    engine_config_frame = tk.Frame(engine_selection_window)
+    engine_config_frame.pack(pady=20)
+
+    # Engine for White (or the only engine in human vs. engine)
+    text = "Choose Engine for White:" if mode == 'engine-engine' else "Choose Engine:"
+    tk.Label(engine_config_frame, text=text, font=large_font).pack()
+    engine1_var = tk.StringVar(value="Stockfish")  # default value
+    engine1_dropdown = ttk.Combobox(engine_config_frame, textvariable=engine1_var, values=list(ENGINE_PATHS.keys()), state="readonly")
+    engine1_dropdown.pack(fill=tk.X, padx=10)
+
+    # Time for White (or the only time in human vs. engine)
+    text = "Set Time for White Engine (seconds):" if mode == 'engine-engine' else "Set time for Engine (seconds):"
+    tk.Label(engine_config_frame, text=text, font=large_font).pack()
+    time_engine1_entry = tk.Entry(engine_config_frame, font=large_font)
+    time_engine1_entry.insert(0, "2")  # default value
+    time_engine1_entry.pack(fill=tk.X, padx=10)
+
+    # If engine vs. engine, provide options for Black as well
+    if mode == "engine-engine":
+        tk.Label(engine_config_frame, text="Choose Engine for Black:", font=large_font).pack()
+        engine2_var = tk.StringVar(value="Leela Zero")  # default value
+        engine2_dropdown = ttk.Combobox(engine_config_frame, textvariable=engine2_var, values=list(ENGINE_PATHS.keys()), state="readonly")
+        engine2_dropdown.pack(fill=tk.X, padx=10)
+
+        tk.Label(engine_config_frame, text="Set Time for Black Engine (seconds):", font=large_font).pack()
+        time_engine2_entry = tk.Entry(engine_config_frame, font=large_font)
+        time_engine2_entry.insert(0, "0.01")  # default value
+        time_engine2_entry.pack(fill=tk.X, padx=10)
+
+    # Button to confirm selection and launch the game mode
+    confirm_button_text = "Play Against Engine" if color else "Play Engine vs. Engine"
+    confirm_button = tk.Button(engine_config_frame, text=confirm_button_text, height=2, width=20, font=large_font,
+                               command=lambda: launch_game_mode(engine_selection_window, mode, color, 
+                                                                engine1_var.get(), engine2_var.get() if mode == "engine-engine" else "Leela Zero", 
+                                                                time_engine1_entry.get(), time_engine2_entry.get() if mode == "engine-engine" else "0.01"))
+    confirm_button.pack(pady=10)
+
+    engine_selection_window.mainloop()
+
 def create_button(parent, text, command, font, side, padx, pady):
     button = tk.Button(parent, text=text, command=command, height=2, width=20)
     button.config(font=font)
@@ -87,16 +155,16 @@ def main():
     mode_frame = tk.Frame(mode_selection_window)
     mode_frame.pack(pady=20)
 
+    # Advanced settings toggle
+    advanced_var = tk.BooleanVar(value=False)  # default value as false
+    advanced_check = tk.Checkbutton(mode_frame, text="Advanced Engine Params", var=advanced_var, font=large_font)
+    advanced_check.pack(side=tk.TOP, pady=(0, 10))
+
     # Add buttons for game mode selection
     create_button(mode_frame, "👤 vs. 👤", lambda: launch_game_mode(mode_selection_window, "human-human"), large_font, tk.TOP, 10, 5)
-    create_button(mode_frame, "👤 (⚪) vs. 🖥️", lambda: launch_game_mode(mode_selection_window, "human-engine", chess.WHITE), large_font, tk.TOP, 10, 5)
-    create_button(mode_frame, "👤 (⚫) vs. 🖥️", lambda: launch_game_mode(mode_selection_window, "human-engine", chess.BLACK), large_font, tk.TOP, 10, 5)
-    create_button(mode_frame, "🖥️ vs. 🖥️", lambda: launch_game_mode(mode_selection_window, "engine-engine"), large_font, tk.TOP, 10, 5)
-
-    #create_button(mode_frame, "Human vs Human", lambda: launch_game_mode(mode_selection_window, "human-human"), large_font, tk.TOP, 10, 5)
-    #create_button(mode_frame, "Human (White) vs Engine", lambda: launch_game_mode(mode_selection_window, "human-engine", chess.WHITE), large_font, tk.TOP, 10, 5)
-    #create_button(mode_frame, "Human (Black) vs Engine", lambda: launch_game_mode(mode_selection_window, "human-engine", chess.BLACK), large_font, tk.TOP, 10, 5)
-    #create_button(mode_frame, "Engine vs Engine", lambda: launch_game_mode(mode_selection_window, "engine-engine"), large_font, tk.TOP, 10, 5)
+    create_button(mode_frame, "👤 (⚪) vs. 🖥️", lambda: launch_intermediate_window(mode_selection_window, "human-engine", advanced_var, chess.WHITE), large_font, tk.TOP, 10, 5)
+    create_button(mode_frame, "👤 (⚫) vs. 🖥️", lambda: launch_intermediate_window(mode_selection_window, "human-engine", advanced_var, chess.BLACK), large_font, tk.TOP, 10, 5)
+    create_button(mode_frame, "🖥️ vs. 🖥️", lambda: launch_intermediate_window(mode_selection_window, "engine-engine", advanced_var), large_font, tk.TOP, 10, 5)
 
     # Start the mode selection window
     mode_selection_window.mainloop()
