@@ -55,6 +55,23 @@ ChessMate's initial settings like camera and microphone activation, robotic arm 
 
 Upon running ChessMate, select the desired game mode. If "Engine Settings" is toggled, you'll be prompted to configure engine settings. After configuration, the game interface will launch, allowing you to interact via the GUI or voice commands, depending on the mode and settings chosen.
 
+### System Setup
+
+<img src="./img/setup.png" alt="Logo" width="50" height="50">
+
+To ensure a smooth ChessMate experience, the following hardware setup is recommended:
+
+- Universal Robots UR3e: A precise and flexible robotic arm for moving chess pieces.
+- Chessboard: A standard board with 4x4 cm squares.
+- Chess Pieces: Regular chess pieces for interactive play.
+- Dummy Box: An allocated space for capturing chess pieces.
+- Bracket: A 30x50 cm bracket, typically used for microwaves, repurposed to support the camera.
+- RealSense D435 Camera: Provides a top-down view of the chessboard for state recognition and move validation.
+- USB A 3.0 to USB C Cable: Facilitates high-speed data transfer for real-time video processing.
+- Computer: A computer with USB A ports and USB 3.0 support for optimal camera performance.
+
+Ensure the robotic arm, chessboard, and camera are appropriately aligned and positioned for optimal performance and interaction.
+
 ### Acknowledgments
 
 - Thanks to the Stockfish and Leela Chess Zero teams for their incredible chess engines.
