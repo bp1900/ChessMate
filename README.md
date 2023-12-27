@@ -57,7 +57,7 @@ Upon running ChessMate, select the desired game mode. If "Engine Settings" is to
 
 ### System Setup
 
-<img src="./img/setup.png" alt="Logo" width="50" height="50">
+<img src="./img/setup.png" alt="Setup" width="300" height="500">
 
 To ensure a smooth ChessMate experience, the following hardware setup is recommended:
 
