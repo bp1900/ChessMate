@@ -401,6 +401,8 @@ class Camera:
         new_squares = divide_into_squares(self.frame, extended=self.extended)
 
         detailed_square_diffs = []
+        added_indices = set()  # To keep track of added square indices
+
         for idx, avg_diff in squares[:detailed_threshold]:
             new = new_squares[idx]
             new_sections = split_into_sections(new)
@@ -424,14 +426,35 @@ class Camera:
             top_exceeds_threshold = avg_diffs['top'] > self.baseline_thresholds['sections']['top'][idx]['median']
             bottom_exceeds_threshold = avg_diffs['bottom'] > self.baseline_thresholds['sections']['bottom'][idx]['median']
 
-            # Only append if the avg difference for at least center or right is above their estimated max
-            if center_exceeds_threshold and right_exceeds_threshold:
+            #########################################################################################
+            # THIS SHOULD BE TESTED MORE, PROBABLY ADDING SOME ML THAT LEARNS IT WOULD BE BETTER
+            #########################################################################################
+                
+            # Determine the condition to append the square or its right neighbor to detailed_square_diffs
+            if center_exceeds_threshold:
                 detailed_square_diffs.append((idx, avg_diff, avg_diffs))
+                added_indices.add(idx)
+            elif right_exceeds_threshold and not left_exceeds_threshold:
+                # Append the right adjacent square index if available, considering board limits
+                right_idx = self._get_right_adjacent_square_index(idx)
+                if right_idx is not None and right_idx not in added_indices:
+                    detailed_square_diffs.append((right_idx, avg_diff, avg_diffs))
 
         self._update_detailed_heatmap(detailed_square_diffs)
 
         return detailed_square_diffs
     
+
+    def _get_right_adjacent_square_index(self, current_idx):
+        # Calculate the right adjacent square index based on current index and board dimensions
+        # Assuming standard 8x8 chess board and idx starting from 0 at the top left square
+        # You might need to adjust this based on how your board is represented
+        row_size = 8  # Typically, a chess board row has 8 squares
+        if (current_idx + 1) % row_size != 0:  # Not on the right edge
+            return current_idx + 1  # The right adjacent square
+        else:
+            return None  # Right edge, no adjacent square to the right
+        
     def recognize_move(self, board):
         # Get the squares that have changed along with their details
         changed_squares_with_details = self.compare_squares(board)
@@ -502,7 +525,7 @@ class Camera:
         if len(refined_moves) == 0:
             return None
         
-        if True:
+        if False:
             # Save the movement square and split just for visualization
             from_square_idx = refined_moves[0][0].from_square
             to_square_idx = refined_moves[0][0].to_square
