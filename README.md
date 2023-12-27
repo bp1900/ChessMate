@@ -1,7 +1,6 @@
 <h1>
-ChessMate: Robotic Chess Companion
-  <img src="./img/logo.png" alt="Logo" width="50" height="50">
-  
+    <img src="./img/logo.png" alt="Logo" width="50" height="50">
+ChessMate: Robotic Chess Companion 
 </h1>
 
 ChessMate is an advanced robotic chess companion that brings the classic game of chess into the modern era with interactive play against a computer or a physical robotic arm. Whether you're practicing against sophisticated AI or just playing for fun against friends, ChessMate offers an engaging chess experience with multiple modes and adaptive control systems.
@@ -47,3 +46,16 @@ To start the ChessMate application:
    ```bash
    python main.py
    ```
+
+### Configuration
+
+ChessMate's initial settings like camera and microphone activation, robotic arm host IP, and port settings are configured in the main.py script. Advanced engine parameters can be adjusted through the GUI under the "Advanced Engine Params" section before game initialization.
+
+### Usage
+
+Upon running ChessMate, select the desired game mode. If "Engine Settings" is toggled, you'll be prompted to configure engine settings. After configuration, the game interface will launch, allowing you to interact via the GUI or voice commands, depending on the mode and settings chosen.
+
+### Acknowledgments
+
+- Thanks to the Stockfish and Leela Chess Zero teams for their incredible chess engines.
+- Gratitude to all contributors and testers who have helped shape ChessMate.
