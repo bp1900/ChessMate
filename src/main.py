@@ -108,7 +108,7 @@ def launch_intermediate_window(mode_selection_window, mode, advanced_var, color=
     engine1_dropdown = ttk.Combobox(engine_config_frame, textvariable=engine1_var, values=list(ENGINE_PATHS.keys()), state="readonly", font=large_font)
     engine1_dropdown.pack(fill=tk.X, padx=10)
 
-    tk.Label(engine_config_frame, text="Max seconds per turn for White:", font=large_font).pack()
+    tk.Label(engine_config_frame, text="Time Limit per Move:", font=large_font).pack()
     time_engine1_scale = tk.Scale(engine_config_frame, from_=0.01, to=10.0, resolution=0.01, orient=tk.HORIZONTAL)
     time_engine1_scale.set(2.0)  # default value
     time_engine1_scale.pack(fill=tk.X, padx=10)
@@ -123,7 +123,7 @@ def launch_intermediate_window(mode_selection_window, mode, advanced_var, color=
         engine2_dropdown = ttk.Combobox(engine_config_frame, textvariable=engine2_var, values=list(ENGINE_PATHS.keys()), state="readonly", font=large_font)
         engine2_dropdown.pack(fill=tk.X, padx=10)
 
-        tk.Label(engine_config_frame, text="Max seconds per turn for Black:", font=large_font).pack()
+        tk.Label(engine_config_frame, text="Time Limit per Move:", font=large_font).pack()
         time_engine2_scale = tk.Scale(engine_config_frame, from_=0.01, to=10.0, resolution=0.01, orient=tk.HORIZONTAL)
         time_engine2_scale.set(0.01)  # default value
         time_engine2_scale.pack(fill=tk.X, padx=10)
@@ -161,7 +161,7 @@ def main():
 
     # Advanced settings toggle
     advanced_var = tk.BooleanVar(value=False)  # default value as false
-    advanced_check = tk.Checkbutton(mode_frame, text="Advanced Engine Params", var=advanced_var, font=large_font)
+    advanced_check = tk.Checkbutton(mode_frame, text="Engine Settings", var=advanced_var, font=large_font)
     advanced_check.pack(side=tk.TOP, pady=(0, 10))
 
     # Add buttons for game mode selection
